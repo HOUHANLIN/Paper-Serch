@@ -5,7 +5,9 @@
 - 使用关键词在 PubMed 上检索文献  
 - 限制时间范围（例如最近 5 年）  
 - 按 PubMed 的 “Best Match（最佳匹配）” 排序  
-- 选取前 N 篇文献并导出为 `.bib` 格式的 BibTeX 文件
+- 选取前 N 篇文献并导出为 `.bib` 格式的 BibTeX 文件  
+- （可选）调用 Gemini 自动生成中文总结，写入 `annote` 字段  
+- 通过一个简单的 Web 前端在浏览器里完成检索与导出
 
 非常适合用于：快速收集某一主题近几年代表性文献，然后导入到 EndNote、Zotero、NoteExpress 等文献管理工具中。
 
@@ -27,18 +29,20 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
+> 其中 `flask` 用于本地 Web 前端界面；`requests` 和 `google-genai` 分别用于访问 PubMed API 与 Gemini。
+
 ---
 
 ## 2. 基本用法
 
-脚本支持两种配置方式：
+命令行脚本支持两种配置方式：
 
 - 完全使用命令行参数；
 - 在 `.env` 中写好默认配置（推荐），然后直接运行 `python pubmed_bibtex.py`。
 
 ### 2.1 使用命令行参数
 
-脚本基本调用形式如下：
+示例：
 
 ```bash
 python pubmed_bibtex.py \
@@ -48,27 +52,80 @@ python pubmed_bibtex.py \
   --output result.bib
 ```
 
-运行后，当前目录会生成一个 `result.bib` 文件，其中包含从 PubMed 获取的文献信息（BibTeX 格式）。
+运行后当前目录会生成 `result.bib`，包含检索到的 BibTeX 条目。
 
-你也可以先查看帮助信息：
+你也可以查看帮助：
 
 ```bash
 python pubmed_bibtex.py --help
+```
 
 ### 2.2 使用 `.env` 默认配置（推荐）
 
-你可以复制 `.env.example` 为 `.env`，填写好 `PUBMED_QUERY`、`PUBMED_YEARS` 等后，直接运行：
+复制 `.env.example` 为 `.env`，填写好 `PUBMED_QUERY`、`PUBMED_YEARS` 等后，直接运行：
 
 ```bash
 python pubmed_bibtex.py
 ```
 
-此时脚本会自动从 `.env` 中读取：
+脚本会自动从 `.env` 中读取：
 
 - `PUBMED_QUERY`：默认检索式  
 - `PUBMED_YEARS`：默认时间范围  
 - `PUBMED_MAX_RESULTS`：默认最大条数  
 - `PUBMED_OUTPUT`：默认输出 `.bib` 文件名  
+
+---
+
+## 2.3 使用 Web 前端（可视化界面）
+
+安装依赖并激活虚拟环境后，启动 Web 前端：
+
+```bash
+source venv/bin/activate
+python webapp.py
+```
+
+浏览器访问 `http://127.0.0.1:5000`，在页面中输入检索式、年份和数量，点击“生成 BibTeX” 即可；Email 和 NCBI API Key 可选（不填则使用 `.env` / 环境变量）。若已配置 `GEMINI_API_KEY` 和 `GEMINI_MODEL`，页面会提示“已启用 Gemini AI 总结”，并将总结写入 `annote` 字段。
+
+---
+
+## 2.4 使用 Docker / docker-compose 运行
+
+可以用 Docker 直接运行 Web 前端。
+
+### 2.4.1 准备环境变量
+
+确保当前目录下存在 `.env` 文件（可从 `.env.example` 拷贝修改），包括：
+
+- PubMed 相关配置：`PUBMED_QUERY`、`PUBMED_YEARS`、`PUBMED_MAX_RESULTS`、`PUBMED_OUTPUT`、`PUBMED_EMAIL`、`PUBMED_API_KEY` 等；  
+- Gemini 相关配置（可选）：`GEMINI_API_KEY`、`GEMINI_MODEL` 等。  
+
+该 `.env` 不会打包进镜像（已在 `.dockerignore` 中忽略），但会在启动容器时作为环境变量加载。
+
+### 2.4.2 通过 Docker 直接运行 Web 前端
+
+在项目根目录执行：
+
+```bash
+docker build -t pubmed-bibtex .
+docker run --rm -p 5000:5000 --env-file .env pubmed-bibtex
+```
+
+然后访问 `http://127.0.0.1:5000`。
+
+### 2.4.3 使用 docker-compose 运行
+
+项目根目录已提供 `docker-compose.yml`：
+
+```bash
+docker-compose up --build
+```
+
+停止服务：
+
+```bash
+docker-compose down
 ```
 
 ---
@@ -235,6 +292,5 @@ cat some_abstract.txt | python gemini_summary.py
 - **Q：导出的 BibTeX 能直接用于 LaTeX 吗？**  
   A：脚本会对部分特殊字符（如 `{`、`}`、`%` 等）做转义处理，一般可直接用于 LaTeX 与主流参考文献样式。若某些条目有特殊字符显示问题，可手动微调对应条目。  
 
----
 
 如需根据你的具体课题（例如某一 AI 算法、某一系统综述等）定制更精准的检索式，或自动化 “abstract → AI 总结 → annote” 的全流程，我也可以帮你一起优化和实现。  

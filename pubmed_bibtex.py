@@ -484,15 +484,20 @@ def article_to_bibtex(info: Dict[str, str]) -> str:
     return "\n".join(lines)
 
 
-def write_bibtex_file(
+def build_bibtex_entries(
     root: ET.Element,
-    output_path: str,
-) -> int:
+):
+    """根据 PubMed XML 根节点构建 BibTeX 文本和条目信息。
+
+    返回值:
+        (bibtex_text, count, infos)
+    """
     articles = root.findall("PubmedArticle")
     client, gemini_model, genai_types = _init_gemini_client()
     use_gemini = client is not None and gemini_model is not None and genai_types is not None
 
     entries: List[str] = []
+    infos: List[Dict[str, str]] = []
     for article in articles:
         info = _extract_article_info(article)
         if use_gemini:
@@ -504,12 +509,21 @@ def write_bibtex_file(
             )
             if summary:
                 info["annote"] = summary
+        infos.append(info)
         entries.append(article_to_bibtex(info))
 
-    with open(output_path, "w", encoding="utf-8") as f:
-        f.write("\n\n".join(entries))
+    return "\n\n".join(entries), len(entries), infos
 
-    return len(entries)
+
+def write_bibtex_file(
+    root: ET.Element,
+    output_path: str,
+) -> int:
+    bibtex_text, count, _ = build_bibtex_entries(root)
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(bibtex_text)
+
+    return count
 
 
 def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:

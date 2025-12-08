@@ -1,0 +1,16 @@
+version: "3.9"
+
+services:
+  web:
+    build: .
+    container_name: pubmed-bibtex-web
+    ports:
+      - "5000:5000"
+    # 从当前目录的 .env 中加载 PUBMED_* / GEMINI_* 等配置
+    env_file:
+      - .env
+    # 如需自定义，可在这里追加/覆盖单个环境变量：
+    # environment:
+    #   - PUBMED_QUERY=your_custom_query
+    restart: unless-stopped
+

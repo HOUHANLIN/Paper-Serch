@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>PubMed 文献检索 & BibTeX 导出 · Web 前端</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        margin: 0;
+        padding: 0;
+        background-color: #f5f5f5;
+      }
+      .page {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 24px 16px 40px;
+      }
+      h1 {
+        font-size: 22px;
+        margin-bottom: 8px;
+      }
+      .subtitle {
+        color: #666;
+        font-size: 14px;
+        margin-bottom: 24px;
+      }
+      .card {
+        background: #fff;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+        margin-bottom: 20px;
+      }
+      label {
+        display: block;
+        font-size: 13px;
+        font-weight: 600;
+        margin-bottom: 6px;
+      }
+      input[type="text"],
+      input[type="number"],
+      textarea {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 8px 10px;
+        border-radius: 4px;
+        border: 1px solid #ccc;
+        font-size: 14px;
+        font-family: inherit;
+      }
+      textarea {
+        resize: vertical;
+        min-height: 80px;
+      }
+      .form-row {
+        margin-bottom: 14px;
+      }
+      .form-row-inline {
+        display: flex;
+        gap: 12px;
+      }
+      .form-row-inline > div {
+        flex: 1;
+      }
+      button[type="submit"] {
+        background-color: #007bff;
+        border: none;
+        border-radius: 4px;
+        padding: 8px 18px;
+        color: #fff;
+        font-size: 14px;
+        cursor: pointer;
+      }
+      button[type="submit"]:hover {
+        background-color: #0069d9;
+      }
+      .export-btn {
+        background-color: #6c757d;
+        margin-left: 8px;
+      }
+      .export-btn:hover {
+        background-color: #5a6268;
+      }
+      .error {
+        color: #d9534f;
+        font-size: 13px;
+        margin-bottom: 8px;
+      }
+      .hint {
+        font-size: 12px;
+        color: #777;
+        margin-top: 4px;
+      }
+      .bibtex-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin-bottom: 8px;
+      }
+      .bibtex-header span {
+        font-size: 13px;
+        color: #555;
+      }
+      .article-list-title {
+        font-size: 14px;
+        font-weight: 600;
+        margin-bottom: 8px;
+        color: #333;
+      }
+      .article {
+        border-top: 1px solid #eee;
+        padding-top: 10px;
+        margin-top: 10px;
+      }
+      .article:first-of-type {
+        border-top: none;
+        padding-top: 0;
+        margin-top: 0;
+      }
+      .article-title {
+        font-size: 14px;
+        font-weight: 600;
+        margin-bottom: 4px;
+      }
+      .article-title a {
+        color: #0056b3;
+        text-decoration: none;
+      }
+      .article-title a:hover {
+        text-decoration: underline;
+      }
+      .article-meta {
+        font-size: 12px;
+        color: #666;
+        margin-bottom: 6px;
+      }
+      .article-abstract,
+      .article-summary {
+        font-size: 13px;
+        color: #333;
+        margin-bottom: 4px;
+      }
+      .article-label {
+        font-weight: 600;
+      }
+      .badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        background-color: #e9ecef;
+        color: #495057;
+        margin-left: 6px;
+      }
+      .copy-btn {
+        font-size: 12px;
+        padding: 4px 10px;
+        background-color: #28a745;
+      }
+      .copy-btn:hover {
+        background-color: #218838;
+      }
+      .footer {
+        margin-top: 16px;
+        font-size: 12px;
+        color: #888;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <h1>PubMed 文献检索 &amp; BibTeX 导出</h1>
+      <div class="subtitle">
+        基于 <code>pubmed_bibtex.py</code> 的 Web 前端：
+        输入检索式，选择年份与数量，一键生成 BibTeX。
+      </div>
+
+      <div class="card">
+        <form method="post">
+          {% if error %}
+          <div class="error">{{ error }}</div>
+          {% endif %}
+
+          <div class="form-row">
+            <label for="query">PubMed 检索式（必填）</label>
+            <textarea
+              id="query"
+              name="query"
+              placeholder="例如：&quot;artificial intelligence&quot; AND (&quot;dental implants&quot; OR &quot;implant dentistry&quot; OR &quot;oral implantology&quot;)"
+            >{{ form.query }}</textarea>
+            <div class="hint">
+              支持 PubMed 常用语法：AND / OR / 括号等。
+            </div>
+          </div>
+
+          <div class="form-row form-row-inline">
+            <div>
+              <label for="years">时间范围（最近几年）</label>
+              <input
+                id="years"
+                name="years"
+                type="number"
+                min="1"
+                max="50"
+                value="{{ form.years }}"
+              />
+            </div>
+            <div>
+              <label for="max_results">最大文献条数</label>
+              <input
+                id="max_results"
+                name="max_results"
+                type="number"
+                min="1"
+                max="200"
+                value="{{ form.max_results }}"
+              />
+            </div>
+          </div>
+
+          <div class="form-row form-row-inline">
+            <div>
+              <label for="email">联系邮箱（推荐）</label>
+              <input
+                id="email"
+                name="email"
+                type="text"
+                placeholder="用于 NCBI E-utilities 合规使用"
+                value="{{ form.email }}"
+              />
+            </div>
+            <div>
+              <label for="api_key">NCBI API Key（可选）</label>
+              <input
+                id="api_key"
+                name="api_key"
+                type="text"
+                placeholder="留空则使用环境变量中的配置"
+                value="{{ form.api_key }}"
+              />
+            </div>
+          </div>
+
+          <button type="submit">生成 BibTeX</button>
+          <button
+            type="submit"
+            formaction="/download"
+            formmethod="post"
+            class="export-btn"
+          >
+            导出 BibTeX 文件
+          </button>
+          {% if has_gemini %}
+          <span class="badge">已启用 Gemini AI 总结</span>
+          {% else %}
+          <span class="badge">未配置 Gemini，跳过 AI 总结</span>
+          {% endif %}
+        </form>
+      </div>
+
+      {% if articles %}
+      <div class="card">
+        <div class="article-list-title">文献概览（共 {{ count }} 条）</div>
+        {% for a in articles %}
+        <div class="article">
+          <div class="article-title">
+            {% if a.url %}
+            <a href="{{ a.url }}" target="_blank" rel="noreferrer noopener">{{ a.title }}</a>
+            {% else %}
+            {{ a.title }}
+            {% endif %}
+          </div>
+          <div class="article-meta">
+            {% if a.authors %}
+            {{ a.authors }} ·
+            {% endif %}
+            {% if a.journal %}
+            {{ a.journal }}
+            {% endif %}
+            {% if a.year %}
+            （{{ a.year }}）
+            {% endif %}
+          </div>
+          {% if a.abstract %}
+          <div class="article-abstract">
+            <span class="article-label">摘要：</span>{{ a.abstract }}
+          </div>
+          {% endif %}
+          {% if a.summary_zh or a.usage_zh %}
+          <div class="article-summary">
+            <span class="article-label">AI 总结：</span>
+            {% if a.summary_zh %}
+            {{ a.summary_zh }}
+            {% endif %}
+            {% if a.usage_zh %}
+            （用法：{{ a.usage_zh }}）
+            {% endif %}
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+        <div class="hint">
+          上方只展示标题、作者、期刊、摘要和 AI 总结；需要完整字段可使用下方 BibTeX 文本。
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="card">
+        <div class="bibtex-header">
+          <span>
+            生成结果（共 {{ count }} 条）
+          </span>
+          <button type="button" class="copy-btn" onclick="copyBibtex()">复制到剪贴板</button>
+        </div>
+        <textarea id="bibtex-output" rows="18" readonly>{{ bibtex_text }}</textarea>
+        <div class="hint">
+          可直接复制到 .bib 文件，或导入 Zotero / EndNote / NoteExpress 等工具。
+        </div>
+      </div>
+
+      <div class="footer">
+        当前界面仅是本地辅助工具：不会上传你的 API Key 或检索式到除 PubMed / Gemini 以外的任何地方。
+      </div>
+    </div>
+
+    <script>
+      function copyBibtex() {
+        const textarea = document.getElementById("bibtex-output");
+        textarea.select();
+        textarea.setSelectionRange(0, 999999);
+        try {
+          document.execCommand("copy");
+        } catch (e) {
+          console.error("复制失败", e);
+        }
+      }
+    </script>
+  </body>
+</html>

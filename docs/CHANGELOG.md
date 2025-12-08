@@ -8,6 +8,57 @@
 
 ---
 
+## v0.2.0: Web 前端与 Docker 支持
+
+日期：2025-12-08  
+状态：功能增强版本
+
+**概述**
+
+- 新增基于 Flask 的本地 Web 前端，可视化检索 PubMed 并查看精简结果。
+- 新增 Docker 与 docker-compose 支持，一条命令即可在容器中运行 Web 版本。
+- 优化 BibTeX 生成逻辑，支持前端展示结构化信息并一键导出 `.bib` 文件。
+
+**详细内容**
+
+- 新增：`webapp.py` + `templates/index.html`
+  - 提供本地 Web 界面：
+    - 表单方式输入检索式、年份范围、最大条数，可选邮箱与 NCBI API Key。
+    - 调用现有检索与解析逻辑，复用 `pubmed_bibtex.py` 的核心能力。
+  - 前端结果展示优化：
+    - 新增“文献概览”列表，仅展示标题、作者、期刊/年份、摘要，以及 AI 总结（`summary_zh` + `usage_zh`）。
+    - 若配置了 `GEMINI_API_KEY` 和 `GEMINI_MODEL`，会自动解析 `annote` 中的 JSON 并在页面中展示。
+    - 保留原始 BibTeX 文本区域，支持复制到剪贴板。
+  - 新增导出 BibTeX 功能：
+    - `/download` 路由根据当前表单参数重新检索并生成 `.bib` 文件。
+    - 通过 `Content-Disposition` 附件下载，文件名默认使用 `PUBMED_OUTPUT` 或 `pubmed_results.bib`。
+
+- 优化：`pubmed_bibtex.py`
+  - 抽取 `build_bibtex_entries()`：
+    - 将 XML → BibTeX 的逻辑封装为可复用函数。
+    - 返回 BibTeX 文本、条数以及每条文献的结构化 `info` 列表，便于 Web 前端消费。
+  - `write_bibtex_file()` 复用上述函数，命令行行为保持不变。
+
+- 新增：容器化与部署相关文件
+  - `Dockerfile`
+    - 基于 `python:3.11-slim` 构建运行环境。
+    - 安装 `requirements.txt`，默认运行 Flask Web 前端（监听 `0.0.0.0:5000`）。
+  - `docker-compose.yml`
+    - 提供 `web` 服务：
+      - `build: .`，映射宿主机 `5000` 端口。
+      - 通过 `env_file: .env` 加载 PubMed 与 Gemini 配置。
+      - 适合本地一键启动：`docker-compose up --build`。
+  - `.dockerignore`
+    - 忽略 `.git/`、`venv/`、`.env`、`.bib`、编辑器配置、构建产物等，减小镜像体积。
+
+- 文档与依赖更新
+  - `requirements.txt`：新增 `flask` 依赖。
+  - `README.md`：
+    - 新增 Web 前端与 Docker/docker-compose 使用说明。
+    - 简化部分命令示例，突出核心用法。
+
+---
+
 ## v0.1.0: init!
 
 日期：2025-12-04  
@@ -54,4 +105,3 @@
 
 - 新增：`docs/DEVELOPER.md`
   - 面向开发者的文档，介绍项目结构、配置优先级、设计思路及未来扩展规划。
-
