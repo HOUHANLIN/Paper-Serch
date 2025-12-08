@@ -8,6 +8,25 @@
 
 ---
 
+## v0.2.1: 自动 Docker 构建
+
+日期：2025-12-08  
+状态：CI 配置更新
+
+**概述**
+
+- 为主分支与 Pull Request 增加自动 Docker 构建流程，确保每次提交的镜像都能成功构建。
+
+**详细内容**
+
+- 新增：`.github/workflows/docker-build.yml`
+  - 在 `main` / `master` 分支 push 与 PR 时触发。
+  - 使用 GitHub Actions + Docker Buildx 构建镜像：
+    - `pubmed-bibtex:latest`
+  - 当前仅在 CI 中构建，不默认推送到远程镜像仓库（后续可按需扩展 `docker push` 步骤）。
+
+---
+
 ## v0.2.0: Web 前端与 Docker 支持
 
 日期：2025-12-08  
