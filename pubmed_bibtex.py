@@ -31,7 +31,7 @@ def main() -> int:
 
     years = get_env_int(f"{env_prefix}_YEARS", get_env_int("PUBMED_YEARS", 5))
     max_results = get_env_int(
-        f"{env_prefix}_MAX_RESULTS", get_env_int("PUBMED_MAX_RESULTS", 10)
+        f"{env_prefix}_MAX_RESULTS", get_env_int("PUBMED_MAX_RESULTS", 5)
     )
     output_path = (
         os.environ.get(f"{env_prefix}_OUTPUT")
@@ -48,12 +48,6 @@ def main() -> int:
     if api_key and api_key.strip() == "your_ncbi_api_key_here":
         api_key = None
 
-    extra_params = {}
-    if source_name == "embase":
-        insttoken = os.environ.get("EMBASE_INSTTOKEN") or os.environ.get("ELS_INSTTOKEN")
-        if insttoken:
-            extra_params["insttoken"] = insttoken
-
     provider = get_provider(os.environ.get("AI_PROVIDER", "none"))
 
     try:
@@ -63,7 +57,6 @@ def main() -> int:
             max_results=max_results,
             email=email,
             api_key=api_key,
-            **extra_params,
         )
         if not articles:
             print("No results found for the given query and time range.")

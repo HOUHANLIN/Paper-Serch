@@ -26,7 +26,7 @@ def _get_default_years(source_name: str) -> int:
 
 def _get_default_max_results(source_name: str) -> int:
     prefix = source_name.upper()
-    return get_env_int(f"{prefix}_MAX_RESULTS", get_env_int("PUBMED_MAX_RESULTS", 10))
+    return get_env_int(f"{prefix}_MAX_RESULTS", get_env_int("PUBMED_MAX_RESULTS", 5))
 
 
 def _get_default_email(source_name: str) -> str:
@@ -36,26 +36,12 @@ def _get_default_email(source_name: str) -> str:
 
 def _get_default_api_key(source_name: str) -> str:
     prefix = source_name.upper()
-    if source_name == "embase":
-        return (
-            os.environ.get(f"{prefix}_API_KEY")
-            or os.environ.get("ELS_API_KEY")
-            or os.environ.get("ELSEVIER_API_KEY")
-            or ""
-        )
     return (
         os.environ.get(f"{prefix}_API_KEY")
         or os.environ.get("PUBMED_API_KEY")
         or os.environ.get("NCBI_API_KEY")
         or ""
     )
-
-
-def _get_source_extra_params(source_name: str) -> Dict[str, str]:
-    if source_name == "embase":
-        insttoken = os.environ.get("EMBASE_INSTTOKEN") or os.environ.get("ELS_INSTTOKEN") or ""
-        return {"insttoken": insttoken} if insttoken else {}
-    return {}
 
 
 def _get_source_defaults(source_name: str) -> Dict[str, str | int]:
@@ -80,9 +66,26 @@ def _default_source_name() -> str:
 def _default_ai_provider_name() -> str:
     providers = list_providers()
     for provider in providers:
+        if provider.name == "gemini":
+            return provider.name
+    for provider in providers:
         if provider.name != "none":
             return provider.name
     return providers[0].name if providers else "none"
+
+
+def _default_query(source_name: str) -> str:
+    prefix = source_name.upper()
+    env_query = (
+        os.environ.get(f"{prefix}_QUERY")
+        or os.environ.get("QUERY")
+        or os.environ.get("PUBMED_QUERY")
+    )
+    if env_query:
+        return env_query
+    return (
+        '"artificial intelligence" AND ("dental implants" OR "implant dentistry" OR "oral implantology")'
+    )
 
 
 def _normalize_annote(raw: str) -> Tuple[str, str, str]:
@@ -161,7 +164,6 @@ def _perform_search(
     email: str,
     api_key: str,
     ai_provider: str,
-    extra_params: Dict[str, str] | None = None,
 ) -> Tuple[str, int, List[ArticleInfo]]:
     source = get_source(source_name)
     if not source:
@@ -173,7 +175,6 @@ def _perform_search(
         max_results=max_results,
         email=email or None,
         api_key=api_key or None,
-        **(extra_params or {}),
     )
     if not articles:
         return "", 0, []
@@ -202,7 +203,7 @@ def _resolve_form(form_data) -> Tuple[Dict[str, str], Dict[str, str | int]]:
     defaults = _get_source_defaults(source)
 
     ai_provider = (form_data.get("ai_provider") or _default_ai_provider_name()).strip()
-    query = (form_data.get("query") or "").strip()
+    query = (form_data.get("query") or _default_query(source)).strip()
     years_raw = (form_data.get("years") or "").strip()
     max_results_raw = (form_data.get("max_results") or "").strip()
     email_raw = (form_data.get("email") or "").strip()
@@ -259,7 +260,6 @@ def index():
                     email=resolved["email"],
                     api_key=resolved["api_key"],
                     ai_provider=resolved["ai_provider"],
-                    extra_params=_get_source_extra_params(resolved["source"]),
                 )
                 articles = [_build_view_article(info) for info in found_articles]
                 if not count:
@@ -299,7 +299,6 @@ def download():
             email=resolved["email"],
             api_key=resolved["api_key"],
             ai_provider=resolved["ai_provider"],
-            extra_params=_get_source_extra_params(resolved["source"]),
         )
     except Exception as exc:  # pylint: disable=broad-except
         return f"检索或生成 BibTeX 时出错：{exc}", 500
