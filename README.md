@@ -2,18 +2,18 @@
 
 本脚本 `pubmed_bibtex.py`（当前版本：**v0.3.0**）用于：
 
-- 使用关键词在 PubMed 上检索文献  
+- 使用关键词在 PubMed / Embase 等数据源上检索文献
 - 限制时间范围（例如最近 5 年）  
 - 按 PubMed 的 “Best Match（最佳匹配）” 排序  
 - 选取前 N 篇文献并导出为 `.bib` 格式的 BibTeX 文件  
 - （可选）调用 Gemini 自动生成中文总结，写入 `annote` 字段
-- 预留多数据源与多 AI 模型接口，可在 Web 界面下拉选择、CLI 通过 `--ai-provider` 指定
+- 预留多数据源与多 AI 模型接口，可在 Web 界面下拉选择
 - 通过一个简单的 Web 前端在浏览器里完成检索与导出
 
 ### v0.3.0 更新速览
 
 - **插件化架构**：新增 `paper_sources/` 与 `ai_providers/` 模块，文献来源与 AI 提供方均通过注册表管理，后续接入新站点/模型无需重写主流程。
-- **Web/CLI 统一选择**：Web 表单支持选择“文献数据源”和“AI 模型”，CLI 支持 `--ai-provider`（或 `AI_PROVIDER` 环境变量）切换总结模型，默认可选“仅检索”“Gemini（自动检测配置）”“OpenAI 占位”。
+- **统一选择**：Web 表单支持选择“文献数据源”和“AI 模型”，默认可选“仅检索”“Gemini（自动检测配置）”“OpenAI 占位”。
 - **BibTeX 服务化**：`services/bibtex.py` 抽取了 BibTeX 生成逻辑，便于其他数据源或未来 API 复用。
 
 非常适合用于：快速收集某一主题近几年代表性文献，然后导入到 EndNote、Zotero、NoteExpress 等文献管理工具中。
@@ -42,35 +42,7 @@ pip install -r requirements.txt
 
 ## 2. 基本用法
 
-命令行脚本支持两种配置方式：
-
-- 完全使用命令行参数；
-- 在 `.env` 中写好默认配置（推荐），然后直接运行 `python pubmed_bibtex.py`。
-
-### 2.1 使用命令行参数
-
-示例：
-
-```bash
-python pubmed_bibtex.py \
-  --query "你的检索式" \
-  --years 5 \
-  --max-results 10 \
-  --output result.bib \
-  --ai-provider gemini
-```
-
-运行后当前目录会生成 `result.bib`，包含检索到的 BibTeX 条目。
-
-你也可以查看帮助：
-
-```bash
-python pubmed_bibtex.py --help
-```
-
-### 2.2 使用 `.env` 默认配置（推荐）
-
-复制 `.env.example` 为 `.env`，填写好 `PUBMED_QUERY`、`PUBMED_YEARS` 等后，直接运行：
+脚本仅支持通过 `.env` 读取配置：复制 `.env.example` 为 `.env`，填写好 `PUBMED_QUERY`、`PUBMED_YEARS`（或 Embase 对应的 `EMBASE_*`、`EMBASE_API_KEY`）等后，直接运行：
 
 ```bash
 python pubmed_bibtex.py
@@ -78,10 +50,11 @@ python pubmed_bibtex.py
 
 脚本会自动从 `.env` 中读取：
 
-- `PUBMED_QUERY`：默认检索式  
-- `PUBMED_YEARS`：默认时间范围  
-- `PUBMED_MAX_RESULTS`：默认最大条数  
-- `PUBMED_OUTPUT`：默认输出 `.bib` 文件名  
+- `PAPER_SOURCE`：数据源，默认 `pubmed`，可改为 `embase`
+- `PUBMED_QUERY` / `EMBASE_QUERY`：默认检索式
+- `PUBMED_YEARS` / `EMBASE_YEARS`：默认时间范围
+- `PUBMED_MAX_RESULTS` / `EMBASE_MAX_RESULTS`：默认最大条数
+- `PUBMED_OUTPUT` / `EMBASE_OUTPUT`：默认输出 `.bib` 文件名
 
 ---
 
@@ -97,6 +70,8 @@ python webapp.py
 浏览器访问 `http://127.0.0.1:5000`，在页面中输入检索式、年份和数量，点击“生成 BibTeX” 即可；Email 和 NCBI API Key 可选（不填则使用 `.env` / 环境变量）。若已配置 `GEMINI_API_KEY` 和 `GEMINI_MODEL`，页面会提示“已启用 Gemini AI 总结”，并将总结写入 `annote` 字段。
 
 界面顶部可以选择文献数据源（当前内置 PubMed，后续可扩展其他站点）以及 AI 模型（内置占位的 OpenAI 选项和自动检测的 Gemini 配置），便于未来接入新的 API 而无需改动前端。
+
+> 提示：前端表单初始值默认全部留空，若未填写则后端会使用 `.env` 中的配置作为回退值。
 
 ---
 
@@ -144,7 +119,9 @@ docker-compose down
 
 当前版本默认内置：
 
-- 文献数据源：`pubmed`（`paper_sources/pubmed.py`）
+- 文献数据源：
+  - `pubmed`（`paper_sources/pubmed.py`）
+  - `embase`（`paper_sources/embase.py`，需 `EMBASE_API_KEY`）
 - AI 总结：
   - `none`：不调用模型，仅返回检索结果
   - `gemini`：自动检测 `GEMINI_API_KEY`/`GEMINI_MODEL` 后启用
@@ -152,37 +129,48 @@ docker-compose down
 
 使用方式：
 
-- **CLI**：通过 `--ai-provider`（或 `AI_PROVIDER` 环境变量）指定，例如 `--ai-provider gemini`。
 - **Web 前端**：首页下拉框可选择“文献数据源”“AI 模型”，提交后会按所选组合检索并生成 BibTeX。
 
-开发者可在注册表中添加新的数据源/模型（见下文扩展指南），无需修改现有 Web/CLI 业务流程。
+开发者可在注册表中添加新的数据源/模型（见下文扩展指南），无需修改现有 Web 业务流程。
 
 ---
 
-## 3. 参数说明
+## 3. 配置项说明（通过 `.env` 设置）
 
-脚本支持的主要参数如下：
+将下列环境变量写入 `.env`（或在运行前导出），脚本会自动读取：
 
-- `--query` / `-q`（必填）  
-  - PubMed 检索关键词或检索式（支持 AND、OR、括号等 PubMed 常用语法）。  
+- `PUBMED_QUERY`（必填）
+  - PubMed 检索关键词或检索式（支持 AND、OR、括号等 PubMed 常用语法）。
 
-- `--years` / `-y`（可选，默认：`5`）  
-  - 限制检索的“发表时间”范围为最近多少年。  
-  - 例如：`--years 5` 表示从今天往前推 5 年内发表的文献。  
+- `PUBMED_YEARS`（可选，默认：`5`）
+  - 限制检索的“发表时间”范围为最近多少年。
+  - 例如：设置为 `5` 表示从今天往前推 5 年内发表的文献。
 
-- `--max-results` / `-n`（可选，默认：`10`）  
-  - 最多返回多少篇文献。  
-  - 例如：`--max-results 20` 表示按 Best Match 排序后取前 20 篇。  
+- `PUBMED_MAX_RESULTS`（可选，默认：`10`）
+  - 最多返回多少篇文献。
+  - 例如：设置为 `20` 表示按 Best Match 排序后取前 20 篇。
 
-- `--output` / `-o`（可选，默认：`pubmed_results.bib`）  
-  - 指定导出的 BibTeX 文件名。  
-  - 例如：`--output ai_implant_dentistry.bib`。  
+- `PUBMED_OUTPUT`（可选，默认：`pubmed_results.bib`）
+  - 指定导出的 BibTeX 文件名。
 
-- `--email`（推荐）  
-  - 提供给 NCBI 的联系邮箱，有利于合规使用 API。  
+- `PUBMED_EMAIL`（推荐）
+  - 提供给 NCBI 的联系邮箱，有利于合规使用 API。
 
-- `--api-key`（可选）  
-  - 若你在 NCBI 申请了 API Key，可以在这里填写，以获得更高的访问限额和更稳定的服务。  
+- `PUBMED_API_KEY`（可选）
+  - 若你在 NCBI 申请了 API Key，可以在这里填写，以获得更高的访问限额和更稳定的服务。
+
+### Embase（Elsevier API）配置
+
+Embase 通过 Elsevier API 检索，需要在 `.env` 中补充：
+
+- `EMBASE_API_KEY`（必填）
+  - Elsevier 提供的 Embase API Key。
+- `EMBASE_INSTTOKEN`（可选）
+  - 若机构订阅要求，填入机构 token；否则可留空。
+- `EMBASE_QUERY`（可选）
+  - 若未填写则复用通用的 `QUERY`/`PUBMED_QUERY`。可按需要单独设置 Embase 检索式。
+- `EMBASE_YEARS`、`EMBASE_MAX_RESULTS`、`EMBASE_OUTPUT`
+  - 若留空则退回到 PubMed 的默认值（5 年、10 条、`pubmed_results.bib`）。
 
 ---
 
@@ -190,36 +178,38 @@ docker-compose down
 
 ### 4.1 一般主题检索示例
 
-例如，检索最近 5 年关于 “癌症（cancer）” 的前 10 篇代表性文献，并导出为 `cancer_top10.bib`：
+1. 编辑 `.env`，填入：
+   - `PUBMED_QUERY="cancer"`
+   - `PUBMED_YEARS=5`
+   - `PUBMED_MAX_RESULTS=10`
+   - `PUBMED_OUTPUT="cancer_top10.bib"`
+2. 运行脚本：
 
 ```bash
 source venv/bin/activate && \
-python pubmed_bibtex.py \
-  -q "cancer" \
-  -y 5 \
-  -n 10 \
-  -o cancer_top10.bib
+python pubmed_bibtex.py
 ```
+
+生成的 BibTeX 将保存到 `cancer_top10.bib`。
 
 ---
 
 ### 4.2 AI 在口腔种植学中的应用（你当前的主题）
 
-如果你想检索 “人工智能（AI）在口腔种植学中的应用”，可以使用下面这个英文检索式：
+如果你想检索 “人工智能（AI）在口腔种植学中的应用”，可以在 `.env` 中设置：
 
-```text
-"artificial intelligence" AND ("dental implants" OR "implant dentistry" OR "oral implantology")
+```env
+PUBMED_QUERY="artificial intelligence" AND ("dental implants" OR "implant dentistry" OR "oral implantology")
+PUBMED_YEARS=5
+PUBMED_MAX_RESULTS=10
+PUBMED_OUTPUT="ai_implant_dentistry.bib"
 ```
 
-搭配脚本的完整命令示例如下（检索最近 5 年，取前 10 篇文献，导出为 `ai_implant_dentistry.bib`）：
+保存后执行：
 
 ```bash
 source venv/bin/activate && \
-python pubmed_bibtex.py \
-  -q '"artificial intelligence" AND ("dental implants" OR "implant dentistry" OR "oral implantology")' \
-  -y 5 \
-  -n 10 \
-  -o ai_implant_dentistry.bib
+python pubmed_bibtex.py
 ```
 
 执行完成后，当前目录将生成 `ai_implant_dentistry.bib` 文件，你可以将其导入到文献管理工具中，用于写作综述或毕业论文。
@@ -336,7 +326,7 @@ cat some_abstract.txt | python gemini_summary.py
    - 必需方法：`search(query, years, max_results, **kwargs) -> List[ArticleInfo]`
    - 复用 `ArticleInfo` 数据类字段，按需填充 `pmid`、`doi`、`url` 等。
 2. 在 `paper_sources/registry.py` 中将实例加入 `_SOURCES` 注册表。
-3. Web/CLI 会自动出现新的数据源选项，无需改动 `webapp.py` 或命令行入口。
+3. Web 会自动出现新的数据源选项，无需改动 `webapp.py`。
 
 ### 8.2 新增 AI 提供方（例如 OpenAI 兼容接口）
 
@@ -344,7 +334,7 @@ cat some_abstract.txt | python gemini_summary.py
    - 必需属性：`name`、`display_name`
    - 必需方法：`summarize(info: ArticleInfo) -> str`，返回写入 `annote` 的字符串（可为 JSON）。
 2. 在 `ai_providers/registry.py` 中注册实例；如需按环境变量动态启用，可参考 `GeminiProvider` 的 `get_default_gemini_provider()` 实现。
-3. 前端和 CLI 下拉/参数会自动出现新的模型名称，选择后即可调用。
+3. 前端下拉会自动出现新的模型名称，选择后即可调用。
 
 ### 8.3 BibTeX 生成复用
 

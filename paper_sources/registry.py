@@ -1,10 +1,13 @@
 from typing import Dict, List, Optional
 
 from .base import PaperSource
+from .embase import EmbaseSource
 from .pubmed import PubMedSource
 
-
-_SOURCES: Dict[str, PaperSource] = {PubMedSource.name: PubMedSource()}
+_SOURCES: Dict[str, PaperSource] = {
+    PubMedSource.name: PubMedSource(),
+    EmbaseSource.name: EmbaseSource(),
+}
 
 
 def get_source(name: str) -> Optional[PaperSource]:

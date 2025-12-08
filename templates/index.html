@@ -261,7 +261,7 @@
 
           <div class="form-row form-row-inline">
             <div>
-              <label for="email">联系邮箱（推荐）</label>
+              <label for="email">联系邮箱（推荐，PubMed 用）</label>
               <input
                 id="email"
                 name="email"
@@ -271,12 +271,12 @@
               />
             </div>
             <div>
-              <label for="api_key">NCBI API Key（可选）</label>
+              <label for="api_key">API Key（可选，根据数据源填写）</label>
               <input
                 id="api_key"
                 name="api_key"
                 type="text"
-                placeholder="留空则使用环境变量中的配置"
+                placeholder="留空则使用 .env 中该数据源的配置"
                 value="{{ form.api_key }}"
               />
             </div>
@@ -377,6 +377,38 @@
           console.error("复制失败", e);
         }
       }
+
+      const sourceDefaults = {{ source_defaults | tojson }};
+
+      function applySourceDefaults() {
+        const source = document.getElementById("source").value;
+        const defaults = sourceDefaults[source] || {};
+
+        const yearsInput = document.getElementById("years");
+        const maxResultsInput = document.getElementById("max_results");
+        const emailInput = document.getElementById("email");
+        const apiKeyInput = document.getElementById("api_key");
+
+        if (yearsInput) {
+          yearsInput.placeholder = defaults.years ? `默认 ${defaults.years}` : "";
+        }
+        if (maxResultsInput) {
+          maxResultsInput.placeholder = defaults.max_results
+            ? `默认 ${defaults.max_results}`
+            : "";
+        }
+        if (emailInput) {
+          emailInput.placeholder = defaults.email ? `默认 ${defaults.email}` : "用于 NCBI E-utilities 合规使用";
+        }
+        if (apiKeyInput) {
+          apiKeyInput.placeholder = defaults.api_key
+            ? `默认 ${defaults.api_key}`
+            : "留空则使用 .env 中该数据源的配置";
+        }
+      }
+
+      document.addEventListener("DOMContentLoaded", applySourceDefaults);
+      document.getElementById("source").addEventListener("change", applySourceDefaults);
     </script>
   </body>
 </html>
