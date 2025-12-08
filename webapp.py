@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from typing import Dict, List, Tuple
 
 from flask import Flask, Response, render_template, request
@@ -39,18 +40,49 @@ def _default_ai_provider_name() -> str:
     return providers[0].name if providers else "none"
 
 
-def _build_view_article(info: ArticleInfo) -> Dict[str, str]:
-    annote_raw = (info.annote or "").strip()
-    summary_zh = ""
-    usage_zh = ""
-    if annote_raw:
+def _normalize_annote(raw: str) -> Tuple[str, str, str]:
+    """尝试从 annote 中提取 summary/usage，并移除额外符号。"""
+    text = (raw or "").strip()
+    if not text:
+        return "", "", ""
+
+    candidates = []
+
+    def _add_candidate(val: str) -> None:
+        if val and val not in candidates:
+            candidates.append(val)
+
+    _add_candidate(text)
+
+    # 去掉围绕 JSON 的代码块符号
+    fence_trimmed = re.sub(r"^```(?:json)?\s*|\s*```$", "", text, flags=re.IGNORECASE).strip()
+    _add_candidate(fence_trimmed)
+
+    # 提取花括号内的 JSON 片段
+    match = re.search(r"\{.*\}", fence_trimmed, flags=re.DOTALL)
+    if match:
+        _add_candidate(match.group(0).strip())
+
+    for candidate in candidates:
         try:
-            parsed = json.loads(annote_raw)
-            if isinstance(parsed, dict):
-                summary_zh = str(parsed.get("summary_zh") or "").strip()
-                usage_zh = str(parsed.get("usage_zh") or "").strip()
+            parsed = json.loads(candidate)
         except Exception:
-            summary_zh = annote_raw
+            continue
+        if isinstance(parsed, dict):
+            summary = str(parsed.get("summary_zh") or "").strip()
+            usage = str(parsed.get("usage_zh") or "").strip()
+            normalized_json = json.dumps(
+                {k: v for k, v in (("summary_zh", summary), ("usage_zh", usage)) if v},
+                ensure_ascii=False,
+            )
+            return normalized_json, summary, usage
+
+    return fence_trimmed, fence_trimmed, ""
+
+
+def _build_view_article(info: ArticleInfo) -> Dict[str, str]:
+    annote, summary_zh, usage_zh = _normalize_annote(info.annote)
+    info.annote = annote
 
     return {
         "title": info.title or "(无标题)",
@@ -72,7 +104,7 @@ def _apply_ai_summary(infos: List[ArticleInfo], provider_name: str) -> None:
     for info in infos:
         summary = provider.summarize(info)
         if summary:
-            info.annote = summary
+            info.annote, _, _ = _normalize_annote(summary)
 
 
 def _perform_search(
@@ -100,6 +132,11 @@ def _perform_search(
         return "", 0, []
 
     _apply_ai_summary(articles, ai_provider)
+
+    # 清理 annote，去掉冗余符号便于 BibTeX 展示
+    for info in articles:
+        info.annote, _, _ = _normalize_annote(info.annote)
+
     bibtex_text, count = build_bibtex_entries(articles)
     return bibtex_text, count, articles
 
