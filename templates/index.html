@@ -40,6 +40,7 @@
       }
       input[type="text"],
       input[type="number"],
+      select,
       textarea {
         width: 100%;
         box-sizing: border-box;
@@ -170,10 +171,10 @@
   </head>
   <body>
     <div class="page">
-      <h1>PubMed 文献检索 &amp; BibTeX 导出</h1>
+      <h1>论文检索 &amp; BibTeX 导出</h1>
       <div class="subtitle">
-        基于 <code>pubmed_bibtex.py</code> 的 Web 前端：
-        输入检索式，选择年份与数量，一键生成 BibTeX。
+        支持不同文献数据源与 AI 模型的可扩展前端：
+        选择数据源、时间范围与数量，一键生成 BibTeX。
       </div>
 
       <div class="card">
@@ -182,8 +183,31 @@
           <div class="error">{{ error }}</div>
           {% endif %}
 
+          <div class="form-row form-row-inline">
+            <div>
+              <label for="source">文献数据源</label>
+              <select id="source" name="source">
+                {% for source in sources %}
+                <option value="{{ source.name }}" {% if form.source == source.name %}selected{% endif %}>
+                  {{ source.display_name }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label for="ai_provider">AI 模型（摘要生成）</label>
+              <select id="ai_provider" name="ai_provider">
+                {% for provider in ai_providers %}
+                <option value="{{ provider.name }}" {% if form.ai_provider == provider.name %}selected{% endif %}>
+                  {{ provider.display_name }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+
           <div class="form-row">
-            <label for="query">PubMed 检索式（必填）</label>
+            <label for="query">检索式（必填）</label>
             <textarea
               id="query"
               name="query"
@@ -242,22 +266,19 @@
             </div>
           </div>
 
-          <button type="submit">生成 BibTeX</button>
-          <button
-            type="submit"
-            formaction="/download"
-            formmethod="post"
-            class="export-btn"
-          >
-            导出 BibTeX 文件
-          </button>
-          {% if has_gemini %}
-          <span class="badge">已启用 Gemini AI 总结</span>
-          {% else %}
-          <span class="badge">未配置 Gemini，跳过 AI 总结</span>
-          {% endif %}
-        </form>
-      </div>
+            <button type="submit">生成 BibTeX</button>
+            <button
+              type="submit"
+              formaction="/download"
+              formmethod="post"
+              class="export-btn"
+            >
+              导出 BibTeX 文件
+            </button>
+            <span class="badge">数据源：{{ form.source }}</span>
+            <span class="badge">AI：{{ form.ai_provider }}</span>
+          </form>
+        </div>
 
       {% if articles %}
       <div class="card">
