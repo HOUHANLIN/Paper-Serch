@@ -142,6 +142,22 @@
         color: #333;
         margin-bottom: 4px;
       }
+      .article-summary {
+        background: #f8f9fa;
+        border-left: 3px solid #81a1c1;
+        padding: 8px 10px;
+        border-radius: 4px;
+        line-height: 1.5;
+      }
+      .article-summary-label {
+        font-weight: 700;
+        color: #1f4b99;
+        margin-right: 6px;
+      }
+      .article-usage {
+        margin-top: 4px;
+        color: #444;
+      }
       .article-label {
         font-weight: 600;
       }
@@ -310,12 +326,17 @@
           {% endif %}
           {% if a.summary_zh or a.usage_zh %}
           <div class="article-summary">
-            <span class="article-label">AI 总结：</span>
-            {% if a.summary_zh %}
-            {{ a.summary_zh }}
-            {% endif %}
+            <div>
+              <span class="article-summary-label">AI 总结</span>
+              {% if a.summary_zh %}
+              <span class="article-body">{{ a.summary_zh | replace('\n', '<br>') | safe }}</span>
+              {% endif %}
+            </div>
             {% if a.usage_zh %}
-            （用法：{{ a.usage_zh }}）
+            <div class="article-usage">
+              <span class="article-label">用法：</span>
+              <span class="article-body">{{ a.usage_zh | replace('\n', '<br>') | safe }}</span>
+            </div>
             {% endif %}
           </div>
           {% endif %}
