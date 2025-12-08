@@ -6,32 +6,37 @@
 
 ## 1. 项目结构概览
 
-当前仓库的核心文件结构如下：
+当前仓库的核心文件结构如下（v0.3.0 插件化架构）：
 
-- `pubmed_bibtex.py`  
-  - 核心脚本：负责调用 NCBI PubMed E-utilities（`esearch` + `efetch`），解析 XML，生成 BibTeX 文件。  
-  - 在检测到 Gemini 配置可用时，会对每篇文献调用 Gemini 生成中文总结，并写入 BibTeX 的 `annote` 字段。
+- `paper_sources/`
+  - `base.py`：`ArticleInfo` 数据类与 `PaperSource` 协议，规范化文献元数据。
+  - `pubmed.py`：默认的 PubMed 实现，负责检索与字段解析。
+  - `registry.py`：数据源注册表，集中管理可用 `PaperSource` 实例。
 
-- `gemini_summary.py`  
-  - 命令行工具示例：对任意输入文本调用 Gemini 生成输出（流式打印）。  
-  - 可用于调试提示词、生成手工填入 `annote` 的总结文本。
+- `ai_providers/`
+  - `base.py`：`AiProvider` 协议与 `Noop`（不使用 AI）实现。
+  - `gemini.py`：Gemini Provider，自动读取 `GEMINI_API_KEY` / `GEMINI_MODEL` 后启用。
+  - `openai_provider.py`：OpenAI 占位 Provider，便于后续接入兼容 API。
+  - `registry.py`：AI Provider 注册表，统一暴露 `list_providers()`、`get_provider()`。
 
-- `.env.example`  
-  - 示例环境配置文件，展示所有可配置项：  
-    - PubMed 相关：`PUBMED_QUERY`、`PUBMED_YEARS`、`PUBMED_MAX_RESULTS`、`PUBMED_OUTPUT`、`PUBMED_EMAIL`、`PUBMED_API_KEY`  
-    - Gemini 相关：`GEMINI_API_KEY`、`GEMINI_MODEL`、`GEMINI_TEMPERATURE`
+- `services/`
+  - `bibtex.py`：将 `ArticleInfo` 列表转换为 BibTeX 文本的通用函数。
+  - `env_loader.py`、`keys.py`：环境变量、配置处理等通用工具。
 
-- `.env`  
-  - 用户实际使用的本地配置文件（不会提交到 Git），由 `.env.example` 拷贝并修改而来。
+- `pubmed_bibtex.py`
+  - CLI 入口：
+    - 读取 `.env`/参数，调用 `PubMedSource.search()`
+    - 可通过 `--ai-provider` 指定 AI 总结（默认 `none`），复用 `ai_providers.registry`
+    - 使用 `services/bibtex.build_bibtex_entries()` 输出 `.bib`
 
-- `requirements.txt`  
-  - Python 依赖列表：当前主要包括 `requests`、`google-genai` 等。
+- `webapp.py` + `templates/index.html`
+  - Flask Web 界面：表单可选择“文献数据源”“AI 模型”，统一走注册表。
+  - 将检索结果与 AI 总结渲染为概要列表与 BibTeX 文本。
 
-- `README.md`  
-  - 面向终端使用者的使用说明：环境准备、命令示例、输出说明等。
-
-- `.gitignore`  
-  - 忽略虚拟环境、缓存、临时文件以及生成的 `.bib` 和本地 `.env`。
+- 其他：
+  - `gemini_summary.py`：独立的 Gemini 终端调用示例。
+  - `.env.example` / `.env`：环境变量示例与实际配置。
+  - `README.md`：用户说明；`docs/CHANGELOG.md` 与本文件用于记录版本与设计。
 
 ---
 
@@ -108,10 +113,19 @@
 
 在 `gemini_summary.py` 中：
 
-- 提供独立的命令行接口（不依赖 PubMed）：  
-  - 从 `--prompt` 或 stdin 读取输入。  
-  - 使用 `GEMINI_MODEL`、`GEMINI_TEMPERATURE` 调用 Gemini，并把结果直接打印出来。  
+- 提供独立的命令行接口（不依赖 PubMed）：
+  - 从 `--prompt` 或 stdin 读取输入。
+  - 使用 `GEMINI_MODEL`、`GEMINI_TEMPERATURE` 调用 Gemini，并把结果直接打印出来。
   - 方便开发者单独调试 prompt 或生成自定义 `annote` 内容。
+
+### 2.4 插件化数据源与 AI Provider（v0.3.0）
+
+- 数据源：所有实现统一继承 `PaperSource` 协议，并在 `paper_sources/registry.py` 中注册。
+  - Web/CLI 通过 `list_sources()` 获取展示名称，通过 `get_source(name)` 调用具体实现。
+  - 默认内置 `PubMedSource`，其余站点可按需扩展并注册。
+- AI Provider：实现 `AiProvider` 协议后在 `ai_providers/registry.py` 注册。
+  - `Noop` 用于“无 AI”场景；`GeminiProvider` 根据环境变量动态启用；`OpenAIProvider` 作为占位示例。
+  - `webapp.py` 及 `pubmed_bibtex.py` 统一调用 `get_provider()`，无需感知具体模型细节。
 
 ---
 
