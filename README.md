@@ -2,7 +2,7 @@
 
 本脚本 `pubmed_bibtex.py`（当前版本：**v0.3.0**）用于：
 
-- 使用关键词在 PubMed / Embase 等数据源上检索文献
+- 使用关键词在 PubMed 等数据源上检索文献
 - 限制时间范围（例如最近 5 年）  
 - 按 PubMed 的 “Best Match（最佳匹配）” 排序  
 - 选取前 N 篇文献并导出为 `.bib` 格式的 BibTeX 文件  
@@ -42,7 +42,7 @@ pip install -r requirements.txt
 
 ## 2. 基本用法
 
-脚本仅支持通过 `.env` 读取配置：复制 `.env.example` 为 `.env`，填写好 `PUBMED_QUERY`、`PUBMED_YEARS`（或 Embase 对应的 `EMBASE_*`、`EMBASE_API_KEY`）等后，直接运行：
+脚本仅支持通过 `.env` 读取配置：复制 `.env.example` 为 `.env`，填写好 `PUBMED_QUERY`、`PUBMED_YEARS` 等后，直接运行：
 
 ```bash
 python pubmed_bibtex.py
@@ -50,11 +50,11 @@ python pubmed_bibtex.py
 
 脚本会自动从 `.env` 中读取：
 
-- `PAPER_SOURCE`：数据源，默认 `pubmed`，可改为 `embase`
-- `PUBMED_QUERY` / `EMBASE_QUERY`：默认检索式
-- `PUBMED_YEARS` / `EMBASE_YEARS`：默认时间范围
-- `PUBMED_MAX_RESULTS` / `EMBASE_MAX_RESULTS`：默认最大条数
-- `PUBMED_OUTPUT` / `EMBASE_OUTPUT`：默认输出 `.bib` 文件名
+- `PAPER_SOURCE`：数据源，默认 `pubmed`
+- `PUBMED_QUERY`：默认检索式
+- `PUBMED_YEARS`：默认时间范围
+- `PUBMED_MAX_RESULTS`：默认最大条数（默认 5 条）
+- `PUBMED_OUTPUT`：默认输出 `.bib` 文件名
 
 ---
 
@@ -71,7 +71,8 @@ python webapp.py
 
 界面顶部可以选择文献数据源（当前内置 PubMed，后续可扩展其他站点）以及 AI 模型（内置占位的 OpenAI 选项和自动检测的 Gemini 配置），便于未来接入新的 API 而无需改动前端。
 
-> 提示：前端表单初始值默认全部留空，若未填写则后端会使用 `.env` 中的配置作为回退值。
+> 提示：前端表单会预填示例检索式 “"artificial intelligence" AND ("dental implants" OR "implant dentistry" OR "oral implantology")”，
+> 若未填写则后端会使用 `.env` 中的配置作为回退值。
 
 ---
 
@@ -121,7 +122,6 @@ docker-compose down
 
 - 文献数据源：
   - `pubmed`（`paper_sources/pubmed.py`）
-  - `embase`（`paper_sources/embase.py`，需 `EMBASE_API_KEY`）
 - AI 总结：
   - `none`：不调用模型，仅返回检索结果
   - `gemini`：自动检测 `GEMINI_API_KEY`/`GEMINI_MODEL` 后启用
@@ -146,7 +146,7 @@ docker-compose down
   - 限制检索的“发表时间”范围为最近多少年。
   - 例如：设置为 `5` 表示从今天往前推 5 年内发表的文献。
 
-- `PUBMED_MAX_RESULTS`（可选，默认：`10`）
+- `PUBMED_MAX_RESULTS`（可选，默认：`5`）
   - 最多返回多少篇文献。
   - 例如：设置为 `20` 表示按 Best Match 排序后取前 20 篇。
 
@@ -159,19 +159,6 @@ docker-compose down
 - `PUBMED_API_KEY`（可选）
   - 若你在 NCBI 申请了 API Key，可以在这里填写，以获得更高的访问限额和更稳定的服务。
 
-### Embase（Elsevier API）配置
-
-Embase 通过 Elsevier API 检索，需要在 `.env` 中补充：
-
-- `EMBASE_API_KEY`（必填）
-  - Elsevier 提供的 Embase API Key。
-- `EMBASE_INSTTOKEN`（可选）
-  - 若机构订阅要求，填入机构 token；否则可留空。
-- `EMBASE_QUERY`（可选）
-  - 若未填写则复用通用的 `QUERY`/`PUBMED_QUERY`。可按需要单独设置 Embase 检索式。
-- `EMBASE_YEARS`、`EMBASE_MAX_RESULTS`、`EMBASE_OUTPUT`
-  - 若留空则退回到 PubMed 的默认值（5 年、10 条、`pubmed_results.bib`）。
-
 ---
 
 ## 4. 典型示例
@@ -181,8 +168,8 @@ Embase 通过 Elsevier API 检索，需要在 `.env` 中补充：
 1. 编辑 `.env`，填入：
    - `PUBMED_QUERY="cancer"`
    - `PUBMED_YEARS=5`
-   - `PUBMED_MAX_RESULTS=10`
-   - `PUBMED_OUTPUT="cancer_top10.bib"`
+   - `PUBMED_MAX_RESULTS=5`
+   - `PUBMED_OUTPUT="cancer_top5.bib"`
 2. 运行脚本：
 
 ```bash
@@ -190,7 +177,7 @@ source venv/bin/activate && \
 python pubmed_bibtex.py
 ```
 
-生成的 BibTeX 将保存到 `cancer_top10.bib`。
+生成的 BibTeX 将保存到 `cancer_top5.bib`。
 
 ---
 
@@ -201,7 +188,7 @@ python pubmed_bibtex.py
 ```env
 PUBMED_QUERY="artificial intelligence" AND ("dental implants" OR "implant dentistry" OR "oral implantology")
 PUBMED_YEARS=5
-PUBMED_MAX_RESULTS=10
+PUBMED_MAX_RESULTS=5
 PUBMED_OUTPUT="ai_implant_dentistry.bib"
 ```
 
