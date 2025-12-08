@@ -19,12 +19,57 @@ load_env()
 
 # ---------- 辅助函数 ----------
 
-def _get_default_years() -> int:
-    return get_env_int("PUBMED_YEARS", 5)
+def _get_default_years(source_name: str) -> int:
+    prefix = source_name.upper()
+    return get_env_int(f"{prefix}_YEARS", get_env_int("PUBMED_YEARS", 5))
 
 
-def _get_default_max_results() -> int:
-    return get_env_int("PUBMED_MAX_RESULTS", 10)
+def _get_default_max_results(source_name: str) -> int:
+    prefix = source_name.upper()
+    return get_env_int(f"{prefix}_MAX_RESULTS", get_env_int("PUBMED_MAX_RESULTS", 10))
+
+
+def _get_default_email(source_name: str) -> str:
+    prefix = source_name.upper()
+    return os.environ.get(f"{prefix}_EMAIL") or os.environ.get("PUBMED_EMAIL", "")
+
+
+def _get_default_api_key(source_name: str) -> str:
+    prefix = source_name.upper()
+    if source_name == "embase":
+        return (
+            os.environ.get(f"{prefix}_API_KEY")
+            or os.environ.get("ELS_API_KEY")
+            or os.environ.get("ELSEVIER_API_KEY")
+            or ""
+        )
+    return (
+        os.environ.get(f"{prefix}_API_KEY")
+        or os.environ.get("PUBMED_API_KEY")
+        or os.environ.get("NCBI_API_KEY")
+        or ""
+    )
+
+
+def _get_source_extra_params(source_name: str) -> Dict[str, str]:
+    if source_name == "embase":
+        insttoken = os.environ.get("EMBASE_INSTTOKEN") or os.environ.get("ELS_INSTTOKEN") or ""
+        return {"insttoken": insttoken} if insttoken else {}
+    return {}
+
+
+def _get_source_defaults(source_name: str) -> Dict[str, str | int]:
+    return {
+        "years": _get_default_years(source_name),
+        "max_results": _get_default_max_results(source_name),
+        "email": _get_default_email(source_name),
+        "api_key": _get_default_api_key(source_name),
+        "output": (
+            os.environ.get(f"{source_name.upper()}_OUTPUT")
+            or os.environ.get("PUBMED_OUTPUT")
+            or "pubmed_results.bib"
+        ),
+    }
 
 
 def _default_source_name() -> str:
@@ -116,6 +161,7 @@ def _perform_search(
     email: str,
     api_key: str,
     ai_provider: str,
+    extra_params: Dict[str, str] | None = None,
 ) -> Tuple[str, int, List[ArticleInfo]]:
     source = get_source(source_name)
     if not source:
@@ -127,6 +173,7 @@ def _perform_search(
         max_results=max_results,
         email=email or None,
         api_key=api_key or None,
+        **(extra_params or {}),
     )
     if not articles:
         return "", 0, []
@@ -139,6 +186,49 @@ def _perform_search(
 
     bibtex_text, count = build_bibtex_entries(articles)
     return bibtex_text, count, articles
+
+
+def _parse_int(value: str, default_value: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default_value
+
+
+def _resolve_form(form_data) -> Tuple[Dict[str, str], Dict[str, str | int]]:
+    """返回渲染用的表单值以及用于搜索的解析结果。"""
+
+    source = (form_data.get("source") or _default_source_name()).strip()
+    defaults = _get_source_defaults(source)
+
+    ai_provider = (form_data.get("ai_provider") or _default_ai_provider_name()).strip()
+    query = (form_data.get("query") or "").strip()
+    years_raw = (form_data.get("years") or "").strip()
+    max_results_raw = (form_data.get("max_results") or "").strip()
+    email_raw = (form_data.get("email") or "").strip()
+    api_key_raw = (form_data.get("api_key") or "").strip()
+
+    resolved = {
+        "source": source,
+        "ai_provider": ai_provider,
+        "query": query,
+        "years": _parse_int(years_raw, defaults["years"]),
+        "max_results": _parse_int(max_results_raw, defaults["max_results"]),
+        "email": email_raw or defaults["email"],
+        "api_key": api_key_raw or defaults["api_key"],
+    }
+
+    form = {
+        "source": source,
+        "ai_provider": ai_provider,
+        "query": query,
+        "years": years_raw,
+        "max_results": max_results_raw,
+        "email": email_raw,
+        "api_key": api_key_raw,
+    }
+
+    return form, resolved
 
 
 # ---------- 路由 ----------
@@ -154,56 +244,30 @@ def index():
     sources = list_sources()
     ai_providers = list_providers()
 
-    form = {
-        "source": _default_source_name(),
-        "ai_provider": _default_ai_provider_name(),
-        "query": os.environ.get("PUBMED_QUERY", ""),
-        "years": str(_get_default_years()),
-        "max_results": str(_get_default_max_results()),
-        "email": os.environ.get("PUBMED_EMAIL", ""),
-        "api_key": os.environ.get("PUBMED_API_KEY")
-        or os.environ.get("NCBI_API_KEY", ""),
-    }
+    form, resolved = _resolve_form(request.form if request.method == "POST" else {})
 
     if request.method == "POST":
-        form["source"] = (request.form.get("source") or form["source"]).strip()
-        form["ai_provider"] = (request.form.get("ai_provider") or form["ai_provider"]).strip()
-        form["query"] = (request.form.get("query") or "").strip()
-        form["years"] = (request.form.get("years") or form["years"]).strip()
-        form["max_results"] = (request.form.get("max_results") or form["max_results"]).strip()
-        form["email"] = (request.form.get("email") or "").strip()
-        form["api_key"] = (request.form.get("api_key") or "").strip()
-
-        if not form["query"]:
+        if not resolved["query"]:
             error = "请输入检索式。"
         else:
             try:
-                years = int(form["years"])
-            except ValueError:
-                years = _get_default_years()
-                form["years"] = str(years)
-
-            try:
-                max_results = int(form["max_results"])
-            except ValueError:
-                max_results = _get_default_max_results()
-                form["max_results"] = str(max_results)
-
-            try:
                 bibtex_text, count, found_articles = _perform_search(
-                    source_name=form["source"],
-                    query=form["query"],
-                    years=years,
-                    max_results=max_results,
-                    email=form["email"],
-                    api_key=form["api_key"],
-                    ai_provider=form["ai_provider"],
+                    source_name=resolved["source"],
+                    query=resolved["query"],
+                    years=resolved["years"],
+                    max_results=resolved["max_results"],
+                    email=resolved["email"],
+                    api_key=resolved["api_key"],
+                    ai_provider=resolved["ai_provider"],
+                    extra_params=_get_source_extra_params(resolved["source"]),
                 )
                 articles = [_build_view_article(info) for info in found_articles]
                 if not count:
                     error = "没有检索到符合条件的文献。"
             except Exception as exc:  # pylint: disable=broad-except
                 error = f"检索或生成 BibTeX 时出错：{exc}"
+
+    source_defaults = {source.name: _get_source_defaults(source.name) for source in sources}
 
     return render_template(
         "index.html",
@@ -214,42 +278,28 @@ def index():
         articles=articles,
         sources=sources,
         ai_providers=ai_providers,
+        source_defaults=source_defaults,
     )
 
 
 @app.route("/download", methods=["POST"])
 def download():
     """根据前端表单参数重新检索并返回 BibTeX 文件。"""
-    query = (request.form.get("query") or "").strip()
-    years_raw = (request.form.get("years") or "").strip()
-    max_results_raw = (request.form.get("max_results") or "").strip()
-    email = (request.form.get("email") or "").strip()
-    api_key = (request.form.get("api_key") or "").strip()
-    source_name = (request.form.get("source") or _default_source_name()).strip()
-    ai_provider = (request.form.get("ai_provider") or _default_ai_provider_name()).strip()
+    _, resolved = _resolve_form(request.form)
 
-    if not query:
+    if not resolved["query"]:
         return "缺少检索式。", 400
 
     try:
-        years = int(years_raw) if years_raw else _get_default_years()
-    except ValueError:
-        years = _get_default_years()
-
-    try:
-        max_results = int(max_results_raw) if max_results_raw else _get_default_max_results()
-    except ValueError:
-        max_results = _get_default_max_results()
-
-    try:
         bibtex_text, count, _ = _perform_search(
-            source_name=source_name,
-            query=query,
-            years=years,
-            max_results=max_results,
-            email=email,
-            api_key=api_key,
-            ai_provider=ai_provider,
+            source_name=resolved["source"],
+            query=resolved["query"],
+            years=resolved["years"],
+            max_results=resolved["max_results"],
+            email=resolved["email"],
+            api_key=resolved["api_key"],
+            ai_provider=resolved["ai_provider"],
+            extra_params=_get_source_extra_params(resolved["source"]),
         )
     except Exception as exc:  # pylint: disable=broad-except
         return f"检索或生成 BibTeX 时出错：{exc}", 500
@@ -257,7 +307,7 @@ def download():
     if not count:
         return "没有检索到符合条件的文献。", 404
 
-    filename = os.environ.get("PUBMED_OUTPUT") or "pubmed_results.bib"
+    filename = _get_source_defaults(resolved["source"])["output"]
     resp = Response(bibtex_text, mimetype="application/x-bibtex; charset=utf-8")
     resp.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
     return resp
