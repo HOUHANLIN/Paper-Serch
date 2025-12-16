@@ -4,409 +4,7 @@
     <meta charset="utf-8" />
     <title>Paper-Serch · 文献检索与 BibTeX 导出</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <style>
-      :root {
-        /* Claude.ai-inspired warm neutral palette */
-        --np-deep-blue: #c15f3c; /* accent Crail */
-        --np-deep-blue-soft: #b45135;
-        --np-gold: #c15f3c;
-        --np-bg: #f4f3ee; /* Pampas */
-        --np-surface: #ffffff;
-        --np-surface-soft: #faf7f4;
-        --np-border-subtle: #b1ada1; /* Cloudy */
-        --np-text-main: #222222;
-        --np-text-muted: #6f6a63;
-        --np-error: #b3261e;
-      }
-
-      body {
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        margin: 0;
-        padding: 0;
-        background-color: var(--np-bg);
-        color: var(--np-text-main);
-      }
-
-      .shell {
-        min-height: 100vh;
-        display: flex;
-        flex-direction: column;
-      }
-
-      .topbar {
-        background: #ffffff;
-        color: var(--np-text-main);
-        padding: 10px 0;
-        border-bottom: 1px solid var(--np-border-subtle);
-      }
-
-      .topbar-inner {
-        max-width: 1120px;
-        margin: 0 auto;
-        padding: 0 18px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-      }
-
-      .brand {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-      }
-
-      .brand-mark {
-        width: 32px;
-        height: 32px;
-        border-radius: 50%;
-        background: var(--np-bg);
-        border: 1px solid var(--np-border-subtle);
-        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.04);
-      }
-
-      .brand-text-main {
-        font-size: 17px;
-        letter-spacing: 0.03em;
-        font-weight: 600;
-      }
-
-      .brand-text-sub {
-        font-size: 11px;
-        text-transform: uppercase;
-        letter-spacing: 0.12em;
-        opacity: 0.7;
-      }
-
-      .topbar-right {
-        font-size: 11px;
-        text-transform: uppercase;
-        letter-spacing: 0.18em;
-        opacity: 0.8;
-        white-space: nowrap;
-      }
-
-      .page {
-        max-width: 1120px;
-        margin: 0 auto;
-        padding: 24px 16px 40px;
-        flex: 1 1 auto;
-      }
-
-      .headline {
-        margin-bottom: 18px;
-      }
-
-      .headline-title {
-        font-size: 24px;
-        letter-spacing: 0.02em;
-        margin: 4px 0;
-        color: #151515;
-      }
-
-      .headline-pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 4px 10px;
-        border-radius: 999px;
-        background: rgba(193, 95, 60, 0.06);
-        border: 1px solid rgba(193, 95, 60, 0.4);
-        font-size: 11px;
-        text-transform: uppercase;
-        letter-spacing: 0.18em;
-        color: #4a332b;
-      }
-
-      .subtitle {
-        color: var(--np-text-muted);
-        font-size: 14px;
-        margin-bottom: 24px;
-        max-width: 720px;
-      }
-
-      .layout {
-        display: grid;
-        grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.2fr);
-        gap: 20px;
-        align-items: flex-start;
-      }
-      .card {
-        background: var(--np-surface);
-        border-radius: 10px;
-        padding: 18px 18px 20px;
-        box-shadow:
-          0 8px 20px rgba(15, 23, 42, 0.04),
-          0 0 0 1px rgba(15, 23, 42, 0.02);
-        margin-bottom: 18px;
-        border: 1px solid rgba(0, 0, 0, 0.02);
-      }
-
-      .card-soft {
-        background: var(--np-surface-soft);
-      }
-
-      .section-title {
-        font-size: 13px;
-        font-weight: 600;
-        letter-spacing: 0.18em;
-        text-transform: uppercase;
-        color: var(--np-text-muted);
-        margin-bottom: 10px;
-      }
-
-      .section-title span {
-        color: var(--np-deep-blue);
-      }
-      label {
-        display: block;
-        font-size: 13px;
-        font-weight: 600;
-        margin-bottom: 6px;
-      }
-      input[type="text"],
-      input[type="number"],
-      select,
-      textarea {
-        width: 100%;
-        box-sizing: border-box;
-        padding: 8px 10px;
-        border-radius: 4px;
-        border: 1px solid #ccc;
-        font-size: 14px;
-        font-family: inherit;
-      }
-      textarea {
-        resize: vertical;
-        min-height: 80px;
-      }
-      .form-row {
-        margin-bottom: 14px;
-      }
-      .form-row-inline {
-        display: flex;
-        gap: 12px;
-      }
-      .form-row-inline > div {
-        flex: 1;
-      }
-
-      .form-row-optional {
-        margin-top: 4px;
-        padding-top: 10px;
-        border-top: 1px dashed rgba(0, 0, 0, 0.06);
-      }
-
-      .optional-label {
-        font-weight: 500;
-        color: var(--np-text-muted);
-      }
-
-      .btn {
-        border-radius: 999px;
-        padding: 8px 18px;
-        font-size: 13px;
-        font-weight: 500;
-        border: 1px solid transparent;
-        cursor: pointer;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        background: none;
-        font-family: inherit;
-      }
-
-      .btn-primary {
-        background-color: var(--np-deep-blue);
-        color: #ffffff;
-        box-shadow:
-          0 6px 14px rgba(0, 0, 0, 0.12),
-          0 0 0 1px rgba(0, 0, 0, 0.03);
-      }
-
-      .btn-primary:hover {
-        background-color: var(--np-deep-blue-soft);
-      }
-
-      .btn-secondary {
-        border-color: rgba(0, 0, 0, 0.2);
-        color: #222;
-        background: rgba(255, 255, 255, 0.6);
-      }
-
-      .btn-secondary:hover {
-        background: rgba(255, 255, 255, 0.9);
-      }
-
-      .btn[disabled] {
-        opacity: 0.55;
-        cursor: default;
-        box-shadow: none;
-      }
-
-      .export-btn {
-        margin-left: 8px;
-      }
-      .error {
-        color: var(--np-error);
-        font-size: 13px;
-        margin-bottom: 10px;
-        padding: 8px 10px;
-        border-radius: 6px;
-        background: #fef2f2;
-        border: 1px solid #f4c7c4;
-      }
-      .hint {
-        font-size: 12px;
-        color: var(--np-text-muted);
-        margin-top: 4px;
-      }
-      .hint-compact {
-        margin-top: 2px;
-      }
-      .bibtex-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: baseline;
-        margin-bottom: 8px;
-      }
-      .bibtex-header span {
-        font-size: 12px;
-        color: var(--np-text-muted);
-      }
-      .article-list-title {
-        font-size: 15px;
-        font-weight: 600;
-        margin-bottom: 8px;
-        color: #111827;
-      }
-      .article {
-        border-top: 1px solid #e5e7eb;
-        padding-top: 10px;
-        margin-top: 10px;
-      }
-      .article:first-of-type {
-        border-top: none;
-        padding-top: 0;
-        margin-top: 0;
-      }
-      .article-title {
-        font-size: 15px;
-        font-weight: 600;
-        margin-bottom: 4px;
-      }
-      .article-title a {
-        color: var(--np-deep-blue);
-        text-decoration: none;
-      }
-      .article-title a:hover {
-        text-decoration: underline;
-      }
-      .article-meta {
-        font-size: 12px;
-        color: var(--np-text-muted);
-        margin-bottom: 6px;
-      }
-      .article-abstract,
-      .article-summary {
-        font-size: 13px;
-        color: var(--np-text-main);
-        margin-bottom: 4px;
-      }
-      .article-summary {
-        background: #f7fafc;
-        border-left: 3px solid var(--np-deep-blue-soft);
-        padding: 8px 10px 9px;
-        border-radius: 4px 6px 6px 4px;
-        line-height: 1.5;
-      }
-      .article-summary-label {
-        font-weight: 700;
-        color: var(--np-deep-blue-soft);
-        margin-right: 6px;
-      }
-      .article-usage {
-        margin-top: 4px;
-        color: #3b4251;
-      }
-      .article-label {
-        font-weight: 600;
-      }
-      .badge {
-        display: inline-block;
-        padding: 2px 8px;
-        border-radius: 999px;
-        font-size: 11px;
-        background-color: rgba(0, 0, 0, 0.03);
-        color: var(--np-text-muted);
-        margin-left: 6px;
-      }
-      .copy-btn {
-        font-size: 11px;
-        padding: 4px 10px;
-        border-radius: 999px;
-        border: 1px solid rgba(0, 0, 0, 0.25);
-        background-color: rgba(255, 255, 255, 0.8);
-        cursor: pointer;
-      }
-      .copy-btn:hover {
-        background-color: #ffffff;
-      }
-      .footer {
-        margin-top: 16px;
-        font-size: 11px;
-        color: var(--np-text-muted);
-        border-top: 1px solid rgba(0, 0, 0, 0.06);
-        padding-top: 12px;
-      }
-      .footer span {
-        text-transform: uppercase;
-        letter-spacing: 0.18em;
-        font-size: 10px;
-        color: #9ca3af;
-      }
-      .bibtex-output {
-        width: 100%;
-        box-sizing: border-box;
-        border-radius: 6px;
-        border: 1px solid var(--np-border-subtle);
-        padding: 10px 12px;
-        font-size: 12px;
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
-          monospace;
-        background: #f9fafb;
-        color: #111827;
-      }
-      .pill-counter {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        padding: 2px 10px;
-        border-radius: 999px;
-        background: rgba(0, 0, 0, 0.04);
-        font-size: 11px;
-        color: var(--np-text-muted);
-      }
-      .hero-note {
-        font-size: 12px;
-        color: var(--np-text-muted);
-        margin-top: 4px;
-      }
-
-      @media (max-width: 900px) {
-        .layout {
-          grid-template-columns: minmax(0, 1fr);
-        }
-
-        .topbar-right {
-          display: none;
-        }
-
-        .headline-title {
-          font-size: 22px;
-        }
-      }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}" />
   </head>
   <body>
     <div class="shell">
@@ -419,9 +17,11 @@
               <div class="brand-text-main">Literature &amp; AI summaries</div>
             </div>
           </div>
-          <div class="topbar-right">
-            RESEARCH REFERENCES · PERSONAL TOOL
+          <div class="topbar-nav">
+            <a class="topbar-link" href="{{ url_for('index') }}">首页</a>
+            <a class="topbar-link" href="{{ url_for('tutorial') }}">使用教程</a>
           </div>
+          <div class="topbar-right">RESEARCH REFERENCES · PERSONAL TOOL</div>
         </div>
       </header>
 
@@ -433,8 +33,7 @@
           </div>
           <h1 class="headline-title">论文检索与 BibTeX 导出</h1>
           <div class="subtitle">
-            在浏览器中清晰配置检索式、时间范围与 AI 模型，
-            快速生成结构化 BibTeX 与中文摘要，为综述与论文写作整理高质量参考文献。
+            在浏览器中清晰配置检索式、时间范围与 AI 模型，快速生成结构化 BibTeX 与中文摘要，为综述与论文写作整理高质量参考文献。
           </div>
         </div>
 
@@ -452,27 +51,19 @@
                     <label for="source">文献数据源</label>
                     <select id="source" name="source">
                       {% for source in sources %}
-                      <option value="{{ source.name }}" {% if form.source == source.name %}selected{% endif %}>
-                        {{ source.display_name }}
-                      </option>
+                      <option value="{{ source.name }}" {% if form.source == source.name %}selected{% endif %}>{{ source.display_name }}</option>
                       {% endfor %}
                     </select>
-                    <div class="hint hint-compact">
-                      当前内置 PubMed，后续可扩展其他来源。
-                    </div>
+                    <div class="hint hint-compact">当前内置 PubMed，后续可扩展其他来源。</div>
                   </div>
                   <div>
                     <label for="ai_provider">AI 模型（摘要生成）</label>
                     <select id="ai_provider" name="ai_provider">
                       {% for provider in ai_providers %}
-                      <option value="{{ provider.name }}" {% if form.ai_provider == provider.name %}selected{% endif %}>
-                        {{ provider.display_name }}
-                      </option>
+                      <option value="{{ provider.name }}" {% if form.ai_provider == provider.name %}selected{% endif %}>{{ provider.display_name }}</option>
                       {% endfor %}
                     </select>
-                    <div class="hint hint-compact">
-                      选择 “Gemini” 时将使用下方配置生成中文总结。
-                    </div>
+                    <div class="hint hint-compact">选择 AI 模型后将尝试对摘要进行中文总结。</div>
                   </div>
                 </div>
 
@@ -484,98 +75,67 @@
                     name="query"
                     placeholder="例如：&quot;artificial intelligence&quot; AND (&quot;dental implants&quot; OR &quot;implant dentistry&quot; OR &quot;oral implantology&quot;)"
                   >{{ form.query }}</textarea>
-                  <div class="hint">
-                    支持 PubMed 常用语法：AND / OR / 括号等。建议先用较宽泛的主题探索，再逐步收窄。
+                  <div class="hint">支持 PubMed 常用语法：AND / OR / 括号等。建议先用较宽泛的主题探索，再逐步收窄。</div>
+                </div>
+
+                <div class="card card-soft" style="margin-bottom: 14px">
+                  <div class="section-title"><span>AI</span> 自动生成检索式</div>
+                  <label for="intent">用自然语言描述你要找的文献</label>
+                  <textarea
+                    id="intent"
+                    name="intent"
+                    placeholder="例如：想找近五年关于人工智能辅助口腔种植外科规划的综述和随机对照研究"
+                  ></textarea>
+                  <div class="generator-actions">
+                    <button class="btn btn-secondary" id="btn-generate-query">AI 生成检索式</button>
+                    <div id="generator-output" class="generator-output">生成的检索式或提示会显示在这里。</div>
                   </div>
                 </div>
 
                 <div class="form-row form-row-inline">
                   <div>
                     <label for="years">时间范围（最近几年）</label>
-                    <input
-                      id="years"
-                      name="years"
-                      type="number"
-                      min="1"
-                      max="50"
-                      value="{{ form.years }}"
-                    />
+                    <input id="years" name="years" type="number" min="1" max="50" value="{{ form.years }}" />
                   </div>
                   <div>
                     <label for="max_results">最大文献条数</label>
-                    <input
-                      id="max_results"
-                      name="max_results"
-                      type="number"
-                      min="1"
-                      max="200"
-                      value="{{ form.max_results }}"
-                    />
+                    <input id="max_results" name="max_results" type="number" min="1" max="200" value="{{ form.max_results }}" />
                   </div>
                 </div>
 
                 <div class="form-row form-row-inline form-row-optional">
                   <div>
                     <label for="email" class="optional-label">联系邮箱（推荐，PubMed 用）</label>
-                    <input
-                      id="email"
-                      name="email"
-                      type="text"
-                      placeholder="用于 NCBI E-utilities 合规使用"
-                      value="{{ form.email }}"
-                    />
-                    <div class="hint hint-compact">
-                      留空时会为当前请求生成一个随机邮箱，仅用于 PubMed API。
-                    </div>
+                    <input id="email" name="email" type="text" placeholder="用于 NCBI E-utilities 合规使用" value="{{ form.email }}" />
+                    <div class="hint hint-compact">留空时会为当前请求生成一个随机邮箱，仅用于 PubMed API。</div>
                   </div>
                   <div>
                     <label for="api_key" class="optional-label">API Key（可选，根据数据源填写）</label>
-                    <input
-                      id="api_key"
-                      name="api_key"
-                      type="text"
-                      placeholder="可选：例如 PubMed 的 NCBI API Key"
-                      value="{{ form.api_key }}"
-                    />
+                    <input id="api_key" name="api_key" type="text" placeholder="可选：例如 PubMed 的 NCBI API Key" value="{{ form.api_key }}" />
                   </div>
                 </div>
 
                 <div class="form-row">
                   <label for="output">导出文件名（可选）</label>
-                  <input
-                    id="output"
-                    name="output"
-                    type="text"
-                    value="{{ form.output }}"
-                  />
-                  <div class="hint">
-                    留空则使用默认文件名（例如：pubmed_results.bib）。
-                  </div>
+                  <input id="output" name="output" type="text" value="{{ form.output }}" />
+                  <div class="hint">留空则使用默认文件名（例如：pubmed_results.bib）。</div>
                 </div>
 
                 <div class="form-row">
                   <div class="section-title"><span>03</span> AI 工具配置</div>
-                  <div id="ai-config-hint" class="hint">
-                    根据上方选择的 AI 模型自动切换配置方式。
-                  </div>
+                  <div id="ai-config-hint" class="hint">根据上方选择的 AI 模型自动切换配置方式。</div>
                   <div id="gemini-config" class="form-row-inline" style="margin-top: 8px">
                     <div>
                       <input
                         id="gemini_api_key"
                         name="gemini_api_key"
                         type="text"
-                        placeholder="Gemini API Key（留空则使用系统环境变量 GEMINI_API_KEY）"
+                        placeholder="Gemini API Key（留空则使用环境变量 GEMINI_API_KEY）"
                         value="{{ form.gemini_api_key }}"
                       />
                     </div>
                     <div>
-                      <input
-                        id="gemini_model"
-                        name="gemini_model"
-                        type="text"
-                        placeholder="模型名称，默认 gemini-2.5-flash"
-                        value="{{ form.gemini_model }}"
-                      />
+                      <input id="gemini_model" name="gemini_model" type="text" placeholder="模型名称，默认 gemini-2.5-flash" value="{{ form.gemini_model }}" />
                     </div>
                     <div>
                       <input
@@ -590,21 +150,55 @@
                       />
                     </div>
                   </div>
+                  <div id="openai-config" class="form-row-inline" style="margin-top: 8px; display: none">
+                    <div>
+                      <input
+                        id="openai_api_key"
+                        name="openai_api_key"
+                        type="text"
+                        placeholder="OpenAI API Key（留空则读取环境变量 OPENAI_API_KEY）"
+                        value="{{ form.openai_api_key }}"
+                      />
+                    </div>
+                    <div>
+                      <input
+                        id="openai_base_url"
+                        name="openai_base_url"
+                        type="text"
+                        placeholder="Base URL，兼容自托管 OpenAI 接口"
+                        value="{{ form.openai_base_url }}"
+                      />
+                    </div>
+                    <div>
+                      <input
+                        id="openai_model"
+                        name="openai_model"
+                        type="text"
+                        placeholder="模型名称，默认 gpt-4o-mini"
+                        value="{{ form.openai_model }}"
+                      />
+                    </div>
+                    <div>
+                      <input
+                        id="openai_temperature"
+                        name="openai_temperature"
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="1"
+                        placeholder="温度，默认 0"
+                        value="{{ form.openai_temperature }}"
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                <!-- 隐藏域：用于在导出时将当前结果框中的 BibTeX 文本一并提交，避免后端重复检索和调用 AI。 -->
-                <textarea
-                  id="bibtex-hidden"
-                  name="bibtex_text"
-                  style="display: none"
-                >{{ bibtex_text }}</textarea>
+                <textarea id="bibtex-hidden" name="bibtex_text" style="display: none">{{ bibtex_text }}</textarea>
 
-                <div class="form-row" style="margin-top: 12px">
-                  <button type="submit" class="btn btn-primary">
-                    <span>生成 BibTeX</span>
-                  </button>
-                  <span class="badge">数据源：{{ form.source }}</span>
-                  <span class="badge">AI：{{ form.ai_provider }}</span>
+                <div class="form-row" style="display: flex; gap: 10px; align-items: center">
+                  <button class="btn btn-primary" type="submit">检索并生成 BibTeX</button>
+                  <button class="btn btn-secondary" type="button" id="copy-btn" onclick="copyBibtex()" {% if not bibtex_text %}disabled{% endif %}>复制 BibTeX</button>
+                  <button class="btn btn-secondary export-btn" type="submit" formaction="/download" {% if not bibtex_text %}disabled{% endif %}>导出 BibTeX 文件</button>
                 </div>
               </form>
             </div>
@@ -612,215 +206,83 @@
 
           <section>
             <div class="card card-soft">
-              <div class="section-title"><span>03</span> ARTICLE OVERVIEW</div>
-              {% if articles %}
-              <div class="article-list-title">
-                文献概览
-                <span class="pill-counter">
-                  <strong>{{ count }}</strong>&nbsp;条
-                </span>
-              </div>
-              {% for a in articles %}
-              <div class="article">
-                <div class="article-title">
-                  {% if a.url %}
-                  <a href="{{ a.url }}" target="_blank" rel="noreferrer noopener">{{ a.title }}</a>
-                  {% else %}
-                  {{ a.title }}
-                  {% endif %}
-                </div>
-                <div class="article-meta">
-                  {% if a.authors %}
-                  {{ a.authors }} ·
-                  {% endif %}
-                  {% if a.journal %}
-                  {{ a.journal }}
-                  {% endif %}
-                  {% if a.year %}
-                  （{{ a.year }}）
-                  {% endif %}
-                  {% if a.pmid %}
-                  · PMID {{ a.pmid }}
-                  {% endif %}
-                </div>
-                {% if a.abstract %}
-                <div class="article-abstract">
-                  <span class="article-label">摘要：</span>{{ a.abstract }}
-                </div>
-                {% endif %}
-                {% if a.summary_zh or a.usage_zh %}
-                <div class="article-summary">
-                  <div>
-                    <span class="article-summary-label">AI 总结</span>
-                    {% if a.summary_zh %}
-                    <span class="article-body">{{ a.summary_zh | replace('\n', '<br>') | safe }}</span>
-                    {% endif %}
+              <div class="section-title"><span>状态</span> 运行进度</div>
+              <ul class="status-list">
+                {% if status_log %}
+                {% for item in status_log %}
+                <li class="status-item">
+                  <span class="status-icon {{ 'success' if item.status == 'success' else 'error' if item.status == 'error' else 'pending' }}">
+                    {% if item.status == 'success' %}✓{% elif item.status == 'error' %}!{% else %}…{% endif %}
+                  </span>
+                  <div class="status-text">
+                    <strong>{{ item.step }}</strong>
+                    <span>{{ item.detail }}</span>
                   </div>
-                  {% if a.usage_zh %}
-                  <div class="article-usage">
-                    <span class="article-label">用法：</span>
-                    <span class="article-body">{{ a.usage_zh | replace('\n', '<br>') | safe }}</span>
+                </li>
+                {% endfor %}
+                {% else %}
+                <li class="status-item">
+                  <span class="status-icon pending">…</span>
+                  <div class="status-text">
+                    <strong>等待开始</strong>
+                    <span>提交表单后会展示检索、AI 调用与导出等进度。</span>
                   </div>
-                  {% endif %}
-                </div>
+                </li>
                 {% endif %}
-              </div>
-              {% endfor %}
-              <div class="hint" style="margin-top: 8px">
-                上方以“专题页”的方式展示每篇文献的核心信息；需要完整字段与引用格式，请使用下方 BibTeX 文本。
-              </div>
-              {% else %}
-              <div class="article-list-title">
-                尚未检索到文献
-              </div>
-              <div class="hint">
-                请在左侧填写检索式并点击 “生成 BibTeX”。完成一次检索后，这里会按条目展示文献及 AI 总结。
-              </div>
-              {% endif %}
+              </ul>
             </div>
 
             <div class="card">
               <div class="bibtex-header">
-                <span>
-                  生成结果（共 {{ count }} 条）
-                </span>
                 <div>
-                  <button
-                    type="button"
-                    class="copy-btn"
-                    onclick="copyBibtex()"
-                    id="copy-btn"
-                    {% if not bibtex_text %}disabled{% endif %}
-                  >
-                    复制到剪贴板
-                  </button>
-                  <button
-                    type="submit"
-                    form="search-form"
-                    formaction="/download"
-                    formmethod="post"
-                    class="btn btn-secondary export-btn"
-                    {% if not bibtex_text %}disabled{% endif %}
-                  >
-                    导出 BibTeX 文件
-                  </button>
+                  <div class="section-title"><span>结果</span> BibTeX 输出</div>
+                  <span>共 {{ count }} 条记录</span>
                 </div>
               </div>
               <textarea id="bibtex-output" class="bibtex-output" rows="18" readonly>{{ bibtex_text }}</textarea>
-              <div class="hint">
-                可直接复制到 .bib 文件，或导入 Zotero / EndNote / NoteExpress 等工具。
+              <div class="hint">可直接复制到 .bib 文件，或导入 Zotero / EndNote / NoteExpress 等工具。</div>
+            </div>
+
+            <div class="card">
+              <div class="article-list-title">文献条目</div>
+              {% if articles %}
+              {% for article in articles %}
+              <div class="article">
+                <div class="article-title">
+                  {% if article.url %}
+                  <a href="{{ article.url }}" target="_blank" rel="noreferrer">{{ article.title }}</a>
+                  {% else %}
+                  {{ article.title }}
+                  {% endif %}
+                </div>
+                <div class="article-meta">{{ article.authors }} · {{ article.journal }} · {{ article.year }} {% if article.pmid %}<span class="badge">PMID: {{ article.pmid }}</span>{% endif %}</div>
+                {% if article.abstract %}
+                <div class="article-abstract"><span class="article-label">摘要：</span>{{ article.abstract }}</div>
+                {% endif %}
+                {% if article.summary_zh %}
+                <div class="article-summary"><span class="article-summary-label">AI 总结</span>{{ article.summary_zh }}</div>
+                {% endif %}
+                {% if article.usage_zh %}
+                <div class="article-summary article-usage"><span class="article-summary-label">应用建议</span>{{ article.usage_zh }}</div>
+                {% endif %}
               </div>
+              {% endfor %}
+              {% else %}
+              <div class="hint">提交后将在此展示检索到的文献列表与 AI 总结。</div>
+              {% endif %}
             </div>
           </section>
         </div>
 
         <div class="footer">
-          <span>LOCAL RESEARCH UTILITY</span><br />
-          当前界面仅作为本地学术辅助工具使用：不会上传你的 API Key 或检索式到除 PubMed / Gemini 以外的任何服务。
+          <span>LOCAL RESEARCH UTILITY</span><br />当前界面仅作为本地学术辅助工具使用：不会上传你的 API Key 或检索式到除必要接口以外的任何服务。
         </div>
       </main>
     </div>
 
     <script>
-      function copyBibtex() {
-        const textarea = document.getElementById("bibtex-output");
-        const btn = document.getElementById("copy-btn");
-        if (!textarea || !textarea.value.trim()) {
-          return;
-        }
-        textarea.select();
-        textarea.setSelectionRange(0, 999999);
-        try {
-          document.execCommand("copy");
-          if (btn) {
-            const original = btn.textContent;
-            btn.textContent = "已复制";
-            setTimeout(() => {
-              btn.textContent = original;
-            }, 1600);
-          }
-        } catch (e) {
-          console.error("复制失败", e);
-        }
-      }
-
-      const sourceDefaults = {{ source_defaults | tojson }};
-
-      function applySourceDefaults() {
-        const source = document.getElementById("source").value;
-        const defaults = sourceDefaults[source] || {};
-
-        const yearsInput = document.getElementById("years");
-        const maxResultsInput = document.getElementById("max_results");
-        const emailInput = document.getElementById("email");
-        const apiKeyInput = document.getElementById("api_key");
-        const outputInput = document.getElementById("output");
-
-        if (yearsInput) {
-          yearsInput.placeholder = defaults.years ? `默认 ${defaults.years}` : "";
-        }
-        if (maxResultsInput) {
-          maxResultsInput.placeholder = defaults.max_results
-            ? `默认 ${defaults.max_results}`
-            : "";
-        }
-        if (emailInput) {
-          emailInput.placeholder = defaults.email ? `默认 ${defaults.email}` : "用于 NCBI E-utilities 合规使用";
-        }
-        if (apiKeyInput) {
-          apiKeyInput.placeholder = defaults.api_key
-            ? `默认 ${defaults.api_key}`
-            : "可选：例如 PubMed 的 NCBI API Key";
-        }
-        if (outputInput) {
-          outputInput.placeholder = defaults.output ? `默认 ${defaults.output}` : "";
-        }
-      }
-
-      function syncAiConfigState() {
-        const providerSelect = document.getElementById("ai_provider");
-        const value = providerSelect ? providerSelect.value : "";
-        const isGemini = value === "gemini";
-        const geminiBlock = document.getElementById("gemini-config");
-        const hint = document.getElementById("ai-config-hint");
-        const fields = [
-          document.getElementById("gemini_api_key"),
-          document.getElementById("gemini_model"),
-          document.getElementById("gemini_temperature"),
-        ];
-        fields.forEach((el) => {
-          if (!el) return;
-          el.disabled = !isGemini;
-          el.style.opacity = isGemini ? "1" : "0.5";
-        });
-        if (geminiBlock) {
-          geminiBlock.style.display = isGemini ? "flex" : "none";
-        }
-        if (hint) {
-          if (value === "gemini") {
-            hint.textContent =
-              "当前使用 Gemini：可选填写下方参数，留空则使用系统环境变量 GEMINI_API_KEY 与默认模型 gemini-2.5-flash。";
-          } else if (value === "none") {
-            hint.textContent = "当前未启用 AI 总结：仅执行检索与 BibTeX 生成。";
-          } else if (value === "openai") {
-            hint.textContent = "当前 OpenAI 选项为占位，暂不提供配置。";
-          } else {
-            hint.textContent = "当前 AI 模型暂不需要额外配置。";
-          }
-        }
-      }
-
-      document.addEventListener("DOMContentLoaded", () => {
-        applySourceDefaults();
-        syncAiConfigState();
-        const output = document.getElementById("bibtex-output");
-        const hidden = document.getElementById("bibtex-hidden");
-        if (output && hidden) {
-          hidden.value = output.value;
-        }
-      });
-      document.getElementById("source").addEventListener("change", applySourceDefaults);
-      document.getElementById("ai_provider").addEventListener("change", syncAiConfigState);
+      window.sourceDefaults = {{ source_defaults | tojson }};
     </script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
   </body>
 </html>
