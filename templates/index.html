@@ -204,6 +204,13 @@
           <section>
             <div class="card card-soft">
               <div class="section-title"><span>状态</span> 运行进度</div>
+              <div class="runtime" id="runtime" data-tone="idle">
+                <div class="runtime-dot" aria-hidden="true"></div>
+                <div class="runtime-text">
+                  <span id="runtime-state">等待开始</span>
+                  <span id="runtime-elapsed">00:00</span>
+                </div>
+              </div>
               <ul class="status-list" id="status-list">
                 <li class="status-item" id="status-placeholder">
                   <span class="status-icon pending">…</span>

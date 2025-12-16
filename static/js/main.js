@@ -127,6 +127,7 @@ function createStatusItem(entry) {
   icon.className = `status-icon ${entry.status || 'pending'}`;
   if (entry.status === 'success') icon.textContent = '✓';
   else if (entry.status === 'error') icon.textContent = '!';
+  else if (entry.status === 'running') icon.textContent = '…';
   else icon.textContent = '…';
   const text = document.createElement('div');
   text.className = 'status-text';
@@ -183,6 +184,56 @@ function renderInitialStatus() {
 }
 
 let generatedQuery = '';
+let runtimeTimer = null;
+let runtimeStart = null;
+
+function formatElapsed(seconds) {
+  const mm = String(Math.floor(seconds / 60)).padStart(2, '0');
+  const ss = String(seconds % 60).padStart(2, '0');
+  return `${mm}:${ss}`;
+}
+
+function setRuntimeState(text, tone) {
+  const wrap = document.getElementById('runtime');
+  const stateEl = document.getElementById('runtime-state');
+  if (wrap) {
+    wrap.setAttribute('data-tone', tone || 'idle');
+  }
+  if (stateEl) {
+    stateEl.textContent = text;
+  }
+}
+
+function updateRuntimeElapsed() {
+  const elapsedEl = document.getElementById('runtime-elapsed');
+  if (!elapsedEl || !runtimeStart) return;
+  const seconds = Math.max(0, Math.floor((Date.now() - runtimeStart) / 1000));
+  elapsedEl.textContent = formatElapsed(seconds);
+}
+
+function startRuntime() {
+  runtimeStart = Date.now();
+  updateRuntimeElapsed();
+  setRuntimeState('运行中...', 'running');
+  if (runtimeTimer) clearInterval(runtimeTimer);
+  runtimeTimer = setInterval(updateRuntimeElapsed, 1000);
+}
+
+function stopRuntime(success = true, message = '') {
+  if (runtimeTimer) {
+    clearInterval(runtimeTimer);
+    runtimeTimer = null;
+  }
+  updateRuntimeElapsed();
+  if (runtimeStart) {
+    const elapsedSeconds = Math.max(0, Math.floor((Date.now() - runtimeStart) / 1000));
+    const prefix = success ? '已完成' : '运行失败';
+    setRuntimeState(`${prefix}${message ? `：${message}` : ''} · ${formatElapsed(elapsedSeconds)}`, success ? 'success' : 'error');
+  } else {
+    setRuntimeState(success ? '已完成' : '运行失败', success ? 'success' : 'error');
+  }
+  runtimeStart = null;
+}
 
 async function generateQuery() {
   const intentInput = document.getElementById('intent');
@@ -338,6 +389,7 @@ async function streamSearch(event) {
   showError('');
   updateBibtexResult('', 0);
   renderArticles([]);
+  startRuntime();
 
   if (submitBtn) {
     submitBtn.disabled = true;
@@ -367,29 +419,42 @@ async function streamSearch(event) {
         const { eventType, payload } = parseSseChunk(part);
         if (eventType === 'status' && payload.entry) {
           appendStatus(payload.entry);
+          if (payload.entry.status === 'error') {
+            stopRuntime(false, payload.entry.detail || '');
+          }
         }
         if (eventType === 'result') {
           updateBibtexResult(payload.bibtex_text, payload.count);
           renderArticles(payload.articles || []);
+          stopRuntime(true, '');
         }
         if (eventType === 'error' && payload.message) {
           showError(payload.message);
+          stopRuntime(false, payload.message);
         }
       });
     }
     if (buffer.trim()) {
       const { eventType, payload } = parseSseChunk(buffer.trim());
       if (eventType === 'status' && payload.entry) appendStatus(payload.entry);
-      if (eventType === 'error' && payload.message) showError(payload.message);
+      if (eventType === 'error' && payload.message) {
+        showError(payload.message);
+        stopRuntime(false, payload.message);
+      }
       if (eventType === 'result') {
         updateBibtexResult(payload.bibtex_text, payload.count);
         renderArticles(payload.articles || []);
+        stopRuntime(true, '');
       }
     }
   } catch (err) {
     console.error(err);
     showError('检索失败，请检查配置或网络。');
+    stopRuntime(false, '接口异常或网络问题');
   } finally {
+    if (runtimeStart) {
+      stopRuntime(true, '');
+    }
     if (submitBtn) {
       submitBtn.disabled = false;
       submitBtn.textContent = '检索并生成 BibTeX';

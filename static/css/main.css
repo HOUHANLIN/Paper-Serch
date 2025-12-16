@@ -492,6 +492,10 @@ textarea {
   background: var(--np-error);
 }
 
+.status-icon.running {
+  background: var(--np-primary);
+}
+
 .status-icon.pending {
   background: var(--np-warning);
 }
@@ -504,6 +508,69 @@ textarea {
 .status-text span {
   color: var(--np-text-muted);
   font-size: 12px;
+}
+
+.runtime {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  margin-bottom: 10px;
+}
+
+.runtime-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--np-border);
+  box-shadow: 0 0 0 0 rgba(76, 111, 255, 0.4);
+  animation: pulse 2s infinite;
+}
+
+.runtime-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.runtime-text span:first-child {
+  font-weight: 600;
+  color: #111827;
+}
+
+.runtime[data-tone='idle'] .runtime-dot {
+  background: var(--np-border);
+  animation: none;
+}
+
+.runtime[data-tone='running'] .runtime-dot {
+  background: var(--np-primary);
+}
+
+.runtime[data-tone='success'] .runtime-dot {
+  background: var(--np-success);
+  animation: none;
+}
+
+.runtime[data-tone='error'] .runtime-dot {
+  background: var(--np-error);
+  animation: none;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(76, 111, 255, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(76, 111, 255, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(76, 111, 255, 0);
+  }
 }
 
 .generator-actions {

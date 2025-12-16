@@ -179,7 +179,9 @@ def _apply_ai_summary(
         if summary:
             info.annote, _, _ = _normalize_annote(summary)
             applied += 1
-    return f"已使用 {provider.display_name} 生成 {applied} 条摘要" if applied else "AI 未返回摘要"
+    if applied:
+        return f"已使用 {provider.display_name} 生成 {applied} 条摘要"
+    return "AI 未返回摘要，可能未配置模型或接口未返回内容"
 
 
 def _perform_search_stream(
@@ -213,6 +215,7 @@ def _perform_search_stream(
             raise RuntimeError(f"未找到名为 {source} 的文献数据源")
 
         yield {"type": "status", "entry": _emit("准备检索", "success", f"数据源：{source_obj.display_name}")}
+        yield {"type": "status", "entry": _emit("检索中", "running", "正在向数据源获取文献...")}
 
         articles = source_obj.search(
             query=query,
@@ -235,22 +238,39 @@ def _perform_search_stream(
             "entry": _emit("检索完成", "success", f"共获取 {len(articles)} 条候选文献"),
         }
 
-        ai_status = _apply_ai_summary(
-            articles,
-            ai_provider,
-            gemini_api_key,
-            gemini_model,
-            gemini_temperature,
-            openai_api_key,
-            openai_base_url,
-            openai_model,
-            openai_temperature,
-        )
-        yield {"type": "status", "entry": _emit("AI 摘要", "success", ai_status)}
+        if ai_provider and ai_provider != "none":
+            yield {"type": "status", "entry": _emit("AI 摘要", "running", "正在生成摘要...")}
+        try:
+            ai_status = _apply_ai_summary(
+                articles,
+                ai_provider,
+                gemini_api_key,
+                gemini_model,
+                gemini_temperature,
+                openai_api_key,
+                openai_base_url,
+                openai_model,
+                openai_temperature,
+            )
+            ai_entry_status = "success" if "失败" not in ai_status else "error"
+            yield {"type": "status", "entry": _emit("AI 摘要", ai_entry_status, ai_status)}
+            if ai_entry_status == "error":
+                yield {"type": "error", "message": ai_status, "status_log": status_log}
+                return
+        except Exception as exc:  # pylint: disable=broad-except
+            failure_detail = f"AI 摘要失败：{exc}"
+            yield {
+                "type": "status",
+                "entry": _emit("AI 摘要", "error", failure_detail),
+                "status_log": status_log,
+            }
+            yield {"type": "error", "message": failure_detail, "status_log": status_log}
+            return
 
         for info in articles:
             info.annote, _, _ = _normalize_annote(info.annote)
 
+        yield {"type": "status", "entry": _emit("BibTeX 生成", "running", "正在整理文献并生成 BibTeX...")}
         bibtex_text, count = build_bibtex_entries(articles)
         yield {"type": "status", "entry": _emit("BibTeX 生成", "success", f"生成 {count} 条记录")}
 
