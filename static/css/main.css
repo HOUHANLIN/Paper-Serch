@@ -650,3 +650,106 @@ textarea {
     font-size: 22px;
   }
 }
+
+.tutorial-page {
+  background: linear-gradient(180deg, rgba(193, 95, 60, 0.04), transparent 120px);
+  border-radius: 12px;
+}
+
+.tutorial-hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 20px 18px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(193, 95, 60, 0.12), rgba(177, 173, 161, 0.14));
+  border: 1px solid rgba(193, 95, 60, 0.25);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+  margin-bottom: 18px;
+}
+
+.hero-kicker {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 12px;
+  color: #4a332b;
+  margin: 0 0 8px;
+}
+
+.hero-title {
+  margin: 0;
+  font-size: 22px;
+  color: #2b1a14;
+}
+
+.hero-desc {
+  margin-top: 8px;
+  color: #4b3b34;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.hero-steps {
+  display: grid;
+  gap: 10px;
+  align-content: center;
+}
+
+.hero-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #3d2b24;
+  border: 1px solid rgba(193, 95, 60, 0.35);
+  font-weight: 600;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.05);
+}
+
+.tutorial-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.tutorial-step {
+  position: relative;
+  background: linear-gradient(180deg, #ffffff, #fefbf8);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  box-shadow: 0 10px 18px rgba(15, 23, 42, 0.05);
+}
+
+.step-label {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  background: rgba(193, 95, 60, 0.1);
+  color: #4a332b;
+  border: 1px solid rgba(193, 95, 60, 0.28);
+}
+
+.tutorial-step pre {
+  background: #111827;
+  color: #f3f4f6;
+  padding: 10px;
+  border-radius: 8px;
+  overflow-x: auto;
+  font-size: 13px;
+  margin: 10px 0;
+}
+
+.tutorial-step code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+}
+
+@media (max-width: 900px) {
+  .tutorial-hero {
+    flex-direction: column;
+  }
+}
