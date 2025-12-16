@@ -1,18 +1,13 @@
 from typing import Dict, List, Optional
 
 from .base import AiProvider, NoopAiProvider
-from .gemini import GeminiProvider, get_default_gemini_provider
+from .gemini import GeminiProvider
 from .openai_provider import OpenAIProvider
 
 
 def _build_registry() -> Dict[str, AiProvider]:
     registry: Dict[str, AiProvider] = {NoopAiProvider.name: NoopAiProvider()}
-
-    gemini = get_default_gemini_provider()
-    if gemini:
-        registry[GeminiProvider.name] = gemini
-
-    # 提前占位 OpenAI，便于后续扩展
+    registry[GeminiProvider.name] = GeminiProvider()
     registry[OpenAIProvider.name] = OpenAIProvider()
     return registry
 

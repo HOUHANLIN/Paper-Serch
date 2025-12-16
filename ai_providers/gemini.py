@@ -3,7 +3,6 @@ import sys
 from typing import Optional
 
 from paper_sources import ArticleInfo
-from services.env_loader import load_env
 
 from .base import AiProvider
 
@@ -13,9 +12,8 @@ class GeminiProvider(AiProvider):
     display_name = "Gemini"
 
     def __init__(self) -> None:
-        load_env()
         self.api_key = os.environ.get("GEMINI_API_KEY")
-        self.model = os.environ.get("GEMINI_MODEL")
+        self.model = os.environ.get("GEMINI_MODEL") or "gemini-2.5-flash"
         self.temperature = self._get_temperature()
         self._client = None
         self._types = None
@@ -25,6 +23,27 @@ class GeminiProvider(AiProvider):
             return float(os.environ.get("GEMINI_TEMPERATURE", "0"))
         except ValueError:
             return 0.0
+
+    def set_config(
+        self,
+        *,
+        api_key: Optional[str] = None,
+        model: Optional[str] = None,
+        temperature: Optional[float] = None,
+    ) -> None:
+        changed = False
+        if api_key is not None and api_key != self.api_key:
+            self.api_key = api_key
+            changed = True
+        if model is not None and model != self.model:
+            self.model = model
+            changed = True
+        if temperature is not None and temperature != self.temperature:
+            self.temperature = temperature
+            changed = True
+        if changed:
+            self._client = None
+            self._types = None
 
     def _ensure_client(self) -> bool:
         if self._client is not None and self._types is not None:
@@ -112,7 +131,4 @@ class GeminiProvider(AiProvider):
 
 
 def get_default_gemini_provider() -> Optional[GeminiProvider]:
-    provider = GeminiProvider()
-    if provider.api_key and provider.model:
-        return provider
-    return None
+    return GeminiProvider()

@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import secrets
 from typing import Dict, List, Tuple
 
 from flask import Flask, Response, render_template, request
@@ -9,39 +10,33 @@ from ai_providers.registry import get_provider, list_providers
 from paper_sources import ArticleInfo
 from paper_sources.registry import get_source, list_sources
 from services.bibtex import build_bibtex_entries
-from services.env_loader import get_env_int, load_env
 
 app = Flask(__name__)
-
-# 尝试从 .env 读取默认配置
-load_env()
 
 
 # ---------- 辅助函数 ----------
 
 def _get_default_years(source_name: str) -> int:
-    prefix = source_name.upper()
-    return get_env_int(f"{prefix}_YEARS", get_env_int("PUBMED_YEARS", 5))
+    return 5
 
 
 def _get_default_max_results(source_name: str) -> int:
-    prefix = source_name.upper()
-    return get_env_int(f"{prefix}_MAX_RESULTS", get_env_int("PUBMED_MAX_RESULTS", 5))
+    return 5
+
+
+def _generate_random_email() -> str:
+    """生成一个用于 PubMed 请求的随机邮箱地址。"""
+    local_part = f"user_{secrets.token_hex(4)}"
+    domain = os.environ.get("DEFAULT_EMAIL_DOMAIN") or "example.com"
+    return f"{local_part}@{domain}"
 
 
 def _get_default_email(source_name: str) -> str:
-    prefix = source_name.upper()
-    return os.environ.get(f"{prefix}_EMAIL") or os.environ.get("PUBMED_EMAIL", "")
+    return ""
 
 
 def _get_default_api_key(source_name: str) -> str:
-    prefix = source_name.upper()
-    return (
-        os.environ.get(f"{prefix}_API_KEY")
-        or os.environ.get("PUBMED_API_KEY")
-        or os.environ.get("NCBI_API_KEY")
-        or ""
-    )
+    return ""
 
 
 def _get_source_defaults(source_name: str) -> Dict[str, str | int]:
@@ -50,11 +45,7 @@ def _get_source_defaults(source_name: str) -> Dict[str, str | int]:
         "max_results": _get_default_max_results(source_name),
         "email": _get_default_email(source_name),
         "api_key": _get_default_api_key(source_name),
-        "output": (
-            os.environ.get(f"{source_name.upper()}_OUTPUT")
-            or os.environ.get("PUBMED_OUTPUT")
-            or "pubmed_results.bib"
-        ),
+        "output": "pubmed_results.bib",
     }
 
 
@@ -66,23 +57,12 @@ def _default_source_name() -> str:
 def _default_ai_provider_name() -> str:
     providers = list_providers()
     for provider in providers:
-        if provider.name == "gemini":
-            return provider.name
-    for provider in providers:
-        if provider.name != "none":
+        if provider.name == "none":
             return provider.name
     return providers[0].name if providers else "none"
 
 
 def _default_query(source_name: str) -> str:
-    prefix = source_name.upper()
-    env_query = (
-        os.environ.get(f"{prefix}_QUERY")
-        or os.environ.get("QUERY")
-        or os.environ.get("PUBMED_QUERY")
-    )
-    if env_query:
-        return env_query
     return (
         '"artificial intelligence" AND ("dental implants" OR "implant dentistry" OR "oral implantology")'
     )
@@ -145,10 +125,27 @@ def _build_view_article(info: ArticleInfo) -> Dict[str, str]:
     }
 
 
-def _apply_ai_summary(infos: List[ArticleInfo], provider_name: str) -> None:
+def _apply_ai_summary(
+    infos: List[ArticleInfo],
+    provider_name: str,
+    gemini_api_key: str,
+    gemini_model: str,
+    gemini_temperature: float,
+) -> None:
     provider = get_provider(provider_name)
     if not provider or provider.name == "none":
         return
+    try:
+        from ai_providers.gemini import GeminiProvider
+    except Exception:  # pragma: no cover - defensive
+        GeminiProvider = None  # type: ignore[assignment]
+
+    if GeminiProvider is not None and isinstance(provider, GeminiProvider):  # type: ignore[arg-type]
+        provider.set_config(
+            api_key=gemini_api_key or None,
+            model=gemini_model or None,
+            temperature=gemini_temperature,
+        )
     for info in infos:
         summary = provider.summarize(info)
         if summary:
@@ -164,6 +161,9 @@ def _perform_search(
     email: str,
     api_key: str,
     ai_provider: str,
+    gemini_api_key: str,
+    gemini_model: str,
+    gemini_temperature: float,
 ) -> Tuple[str, int, List[ArticleInfo]]:
     source = get_source(source_name)
     if not source:
@@ -179,7 +179,7 @@ def _perform_search(
     if not articles:
         return "", 0, []
 
-    _apply_ai_summary(articles, ai_provider)
+    _apply_ai_summary(articles, ai_provider, gemini_api_key, gemini_model, gemini_temperature)
 
     # 清理 annote，去掉冗余符号便于 BibTeX 展示
     for info in articles:
@@ -196,7 +196,14 @@ def _parse_int(value: str, default_value: int) -> int:
         return default_value
 
 
-def _resolve_form(form_data) -> Tuple[Dict[str, str], Dict[str, str | int]]:
+def _parse_float(value: str, default_value: float) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default_value
+
+
+def _resolve_form(form_data) -> Tuple[Dict[str, str], Dict[str, object]]:
     """返回渲染用的表单值以及用于搜索的解析结果。"""
 
     source = (form_data.get("source") or _default_source_name()).strip()
@@ -208,6 +215,25 @@ def _resolve_form(form_data) -> Tuple[Dict[str, str], Dict[str, str | int]]:
     max_results_raw = (form_data.get("max_results") or "").strip()
     email_raw = (form_data.get("email") or "").strip()
     api_key_raw = (form_data.get("api_key") or "").strip()
+    output_raw = (form_data.get("output") or "").strip()
+    gemini_api_key_raw = (form_data.get("gemini_api_key") or "").strip()
+    gemini_model_raw = (form_data.get("gemini_model") or "").strip()
+    gemini_temperature_raw = (form_data.get("gemini_temperature") or "").strip()
+
+    # 默认邮箱解析逻辑：
+    # 1. 若用户在表单中填写，则优先使用用户输入。
+    # 2. 若留空，则在本次请求中生成一个随机邮箱；
+    #    注意这个随机邮箱不写回表单，保证用户视角下输入框始终为空，
+    #    且“每一次请求 API（在邮箱留空的情况下）都会生成新的邮箱”。
+    if email_raw:
+        resolved_email = email_raw
+    elif defaults["email"]:
+        resolved_email = defaults["email"]
+    else:
+        resolved_email = _generate_random_email()
+
+    resolved_output = output_raw or str(defaults["output"])
+    resolved_temperature = _parse_float(gemini_temperature_raw, 0.0)
 
     resolved = {
         "source": source,
@@ -215,8 +241,12 @@ def _resolve_form(form_data) -> Tuple[Dict[str, str], Dict[str, str | int]]:
         "query": query,
         "years": _parse_int(years_raw, defaults["years"]),
         "max_results": _parse_int(max_results_raw, defaults["max_results"]),
-        "email": email_raw or defaults["email"],
+        "email": resolved_email,
         "api_key": api_key_raw or defaults["api_key"],
+        "output": resolved_output,
+        "gemini_api_key": gemini_api_key_raw,
+        "gemini_model": gemini_model_raw,
+        "gemini_temperature": resolved_temperature,
     }
 
     form = {
@@ -225,8 +255,14 @@ def _resolve_form(form_data) -> Tuple[Dict[str, str], Dict[str, str | int]]:
         "query": query,
         "years": years_raw,
         "max_results": max_results_raw,
+        # 表单中只回显用户输入；如果用户留空，则始终显示为空，
+        # 但后台每次请求都会在需要时生成一个新的随机邮箱用于 PubMed 请求。
         "email": email_raw,
         "api_key": api_key_raw,
+        "output": output_raw,
+        "gemini_api_key": gemini_api_key_raw,
+        "gemini_model": gemini_model_raw,
+        "gemini_temperature": gemini_temperature_raw,
     }
 
     return form, resolved
@@ -260,6 +296,9 @@ def index():
                     email=resolved["email"],
                     api_key=resolved["api_key"],
                     ai_provider=resolved["ai_provider"],
+                    gemini_api_key=resolved.get("gemini_api_key", ""),
+                    gemini_model=resolved.get("gemini_model", ""),
+                    gemini_temperature=resolved.get("gemini_temperature", 0.0),
                 )
                 articles = [_build_view_article(info) for info in found_articles]
                 if not count:
@@ -284,29 +323,16 @@ def index():
 
 @app.route("/download", methods=["POST"])
 def download():
-    """根据前端表单参数重新检索并返回 BibTeX 文件。"""
-    _, resolved = _resolve_form(request.form)
+    """根据结果框中的 BibTeX 文本直接生成文件，避免重复调用外部 API。"""
+    bibtex_text = (request.form.get("bibtex_text") or "").strip()
+    if not bibtex_text:
+        return "缺少 BibTeX 内容，请先生成结果。", 400
 
-    if not resolved["query"]:
-        return "缺少检索式。", 400
-
-    try:
-        bibtex_text, count, _ = _perform_search(
-            source_name=resolved["source"],
-            query=resolved["query"],
-            years=resolved["years"],
-            max_results=resolved["max_results"],
-            email=resolved["email"],
-            api_key=resolved["api_key"],
-            ai_provider=resolved["ai_provider"],
-        )
-    except Exception as exc:  # pylint: disable=broad-except
-        return f"检索或生成 BibTeX 时出错：{exc}", 500
-
-    if not count:
-        return "没有检索到符合条件的文献。", 404
-
-    filename = _get_source_defaults(resolved["source"])["output"]
+    source = (request.form.get("source") or _default_source_name()).strip()
+    output_name = (request.form.get("output") or "").strip()
+    if not output_name:
+        output_name = str(_get_source_defaults(source)["output"])
+    filename = output_name
     resp = Response(bibtex_text, mimetype="application/x-bibtex; charset=utf-8")
     resp.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
     return resp

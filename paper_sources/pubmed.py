@@ -5,7 +5,6 @@ import requests
 import xml.etree.ElementTree as ET
 
 from paper_sources import ArticleInfo, PaperSource
-from services.env_loader import load_env
 from services.keys import build_cite_key
 
 
@@ -25,7 +24,6 @@ class PubMedSource(PaperSource):
         email: Optional[str] = None,
         api_key: Optional[str] = None,
     ) -> List[ArticleInfo]:
-        load_env()
         pmids = self._search_pubmed(query, years, max_results, email=email, api_key=api_key)
         if not pmids:
             return []
