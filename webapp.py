@@ -115,6 +115,10 @@ def _perform_search_stream(
     openai_base_url: str,
     openai_model: str,
     openai_temperature: float,
+    ollama_api_key: str,
+    ollama_base_url: str,
+    ollama_model: str,
+    ollama_temperature: float,
     output: str,
 ) -> Generator[Dict[str, object], None, None]:
     status_log: List[Dict[str, str]] = []
@@ -166,6 +170,10 @@ def _perform_search_stream(
                 openai_base_url,
                 openai_model,
                 openai_temperature,
+                ollama_api_key,
+                ollama_base_url,
+                ollama_model,
+                ollama_temperature,
             )
             ai_entry_status = "success" if "失败" not in ai_status else "error"
             yield {"type": "status", "entry": _emit("AI 摘要", ai_entry_status, ai_status)}
@@ -240,6 +248,10 @@ def _resolve_form(form_data) -> Tuple[Dict[str, str], Dict[str, object]]:
     openai_base_url_raw = (form_data.get("openai_base_url") or "").strip()
     openai_model_raw = (form_data.get("openai_model") or "").strip()
     openai_temperature_raw = (form_data.get("openai_temperature") or "").strip()
+    ollama_api_key_raw = (form_data.get("ollama_api_key") or "").strip()
+    ollama_base_url_raw = (form_data.get("ollama_base_url") or "").strip()
+    ollama_model_raw = (form_data.get("ollama_model") or "").strip()
+    ollama_temperature_raw = (form_data.get("ollama_temperature") or "").strip()
 
     # 默认邮箱解析逻辑：
     # 1. 若用户在表单中填写，则优先使用用户输入。
@@ -272,6 +284,10 @@ def _resolve_form(form_data) -> Tuple[Dict[str, str], Dict[str, object]]:
         "openai_base_url": openai_base_url_raw,
         "openai_model": openai_model_raw,
         "openai_temperature": _parse_float(openai_temperature_raw, 0.0),
+        "ollama_api_key": ollama_api_key_raw,
+        "ollama_base_url": ollama_base_url_raw,
+        "ollama_model": ollama_model_raw,
+        "ollama_temperature": _parse_float(ollama_temperature_raw, 0.0),
     }
 
     form = {
@@ -292,6 +308,10 @@ def _resolve_form(form_data) -> Tuple[Dict[str, str], Dict[str, object]]:
         "openai_base_url": openai_base_url_raw,
         "openai_model": openai_model_raw,
         "openai_temperature": openai_temperature_raw,
+        "ollama_api_key": ollama_api_key_raw,
+        "ollama_base_url": ollama_base_url_raw,
+        "ollama_model": ollama_model_raw,
+        "ollama_temperature": ollama_temperature_raw,
     }
 
     return form, resolved
@@ -392,6 +412,10 @@ def generate_query():
         openai_base_url=(data.get("openai_base_url") or "").strip(),
         openai_model=(data.get("openai_model") or "").strip(),
         openai_temperature=_parse_float(data.get("openai_temperature"), 0.0),
+        ollama_api_key=(data.get("ollama_api_key") or "").strip(),
+        ollama_base_url=(data.get("ollama_base_url") or "").strip(),
+        ollama_model=(data.get("ollama_model") or "").strip(),
+        ollama_temperature=_parse_float(data.get("ollama_temperature"), 0.0),
     )
     return jsonify({"query": query, "message": message})
 
