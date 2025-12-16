@@ -2,7 +2,7 @@ import json
 import os
 import re
 import secrets
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from flask import Flask, Response, jsonify, render_template, request
 
@@ -329,6 +329,13 @@ def _generate_query_terms(
     openai_model: str,
     openai_temperature: float,
 ) -> Tuple[str, str]:
+    def _normalize(value: str) -> str:
+        return (value or "").strip()
+
+    def _normalize_optional(value: str) -> Optional[str]:
+        value_clean = (value or "").strip()
+        return value_clean or None
+
     intent_clean = (intent or "").strip()
     if not intent_clean:
         return "", "请先提供你的检索需求。"
@@ -349,15 +356,43 @@ def _generate_query_terms(
         "请直接返回最终检索式。"
     )
 
-    if ai_provider == "openai" and openai_api_key:
-        ai_query = _generate_query_via_openai(prompt, openai_api_key, openai_base_url, openai_model, openai_temperature)
-        if ai_query:
-            return ai_query, "已使用 OpenAI 生成的检索式"
+    openai_defaults = OpenAIProvider()
+    resolved_openai_api_key = _normalize(openai_api_key) or (openai_defaults.api_key or "")
+    resolved_openai_base_url = _normalize_optional(openai_base_url) or openai_defaults.base_url or ""
+    resolved_openai_model = _normalize(openai_model) or openai_defaults.model
+    resolved_openai_temperature = openai_temperature if openai_temperature is not None else openai_defaults.temperature
 
-    if ai_provider == "gemini" and gemini_api_key:
-        ai_query = _generate_query_via_gemini(prompt, gemini_api_key, gemini_model, gemini_temperature)
+    gemini_defaults = GeminiProvider()
+    resolved_gemini_api_key = _normalize(gemini_api_key) or (gemini_defaults.api_key or "")
+    resolved_gemini_model = _normalize(gemini_model) or gemini_defaults.model
+    resolved_gemini_temperature = gemini_temperature if gemini_temperature is not None else gemini_defaults.temperature
+
+    if ai_provider == "openai":
+        if not resolved_openai_api_key:
+            return "", "未配置 OpenAI API Key，无法调用真实接口生成检索式。"
+        ai_query = _generate_query_via_openai(
+            prompt,
+            resolved_openai_api_key,
+            resolved_openai_base_url,
+            resolved_openai_model,
+            resolved_openai_temperature,
+        )
         if ai_query:
-            return ai_query, "已使用 Gemini 生成的检索式"
+            return ai_query, "已使用 OpenAI 实时生成的检索式"
+        return "", "OpenAI 生成检索式失败，请检查配置。"
+
+    if ai_provider == "gemini":
+        if not resolved_gemini_api_key:
+            return "", "未配置 Gemini API Key，无法调用真实接口生成检索式。"
+        ai_query = _generate_query_via_gemini(
+            prompt,
+            resolved_gemini_api_key,
+            resolved_gemini_model,
+            resolved_gemini_temperature,
+        )
+        if ai_query:
+            return ai_query, "已使用 Gemini 实时生成的检索式"
+        return "", "Gemini 生成检索式失败，请检查配置。"
 
     # fallback to rule-based builder when AI 不可用
     if source_name == "pubmed":
