@@ -24,53 +24,70 @@
         </div>
       </header>
 
-      <main class="page">
+      <main class="page tutorial-page">
         <div class="headline">
-          <div class="headline-pill">
-            <span>Guide</span>
-            <span>Walkthrough</span>
-          </div>
-          <h1 class="headline-title">Paper-Serch 使用教程</h1>
-          <div class="subtitle">按照步骤完成环境配置、检索、AI 总结与 BibTeX 导出，帮助你快速熟悉整个流程。</div>
+          <div class="headline-pill">Guide · Web only</div>
+          <h1 class="headline-title">5 分钟上手 Paper-Serch</h1>
+          <div class="subtitle">按照页面提示完成检索、进度查看与 BibTeX 导出，无需额外工具。</div>
         </div>
 
-        <div class="card tutorial-body">
-          <h2>1. 基础准备</h2>
-          <ul>
-            <li>安装依赖：<code>pip install -r requirements.txt</code></li>
-            <li>在项目根目录配置 <code>.env</code>（可参考 <code>.env.example</code>）。</li>
-            <li>启动 Web 前端：<code>python webapp.py</code> 后访问 <code>http://127.0.0.1:5000</code>。</li>
-          </ul>
+        <section class="tutorial-hero">
+          <div>
+            <p class="hero-kicker">本教程只针对 Web 界面，无需 Docker 与命令行脚本。</p>
+            <h2 class="hero-title">启动 → 填写表单 → 导出 BibTeX</h2>
+            <p class="hero-desc">
+              使用 uv 管理环境，运行 Flask 服务后直接在浏览器完成检索与可选的 AI 摘要生成。表单预设示例，随时可以调整参数再运行。
+            </p>
+          </div>
+          <div class="hero-steps">
+            <div class="hero-chip">保持本地运行</div>
+            <div class="hero-chip">SSE 实时进度</div>
+            <div class="hero-chip">可选 AI 中文摘要</div>
+          </div>
+        </section>
 
-          <h2>2. 配置检索</h2>
-          <p>在首页的“文献检索”区域填写检索式、时间范围和最大条数。你可以直接输入 PubMed 语法，也可以在“AI 自动生成检索式”中用自然语言描述需求，生成结果会先展示预览，点击“应用到检索式”后才会覆盖输入。</p>
-          <p>表单会根据不同数据源自动补全默认邮箱、API Key 和输出文件名，PubMed 合规信息默认折叠，通过“显示 PubMed 邮箱/API”按需展开。</p>
+        <div class="tutorial-grid">
+          <div class="card tutorial-step">
+            <div class="step-label">01</div>
+            <h2>启动本地服务</h2>
+            <p>在仓库根目录执行以下命令，创建环境并启动 Flask：</p>
+            <pre><code>uv venv
+source .venv/bin/activate
+uv sync
+uv run webapp.py</code></pre>
+            <p>浏览器访问 <code>http://127.0.0.1:5000</code>，即可看到首页。</p>
+          </div>
 
-          <h2>3. 选择 AI 模型</h2>
-          <p>在“工具选择”与“AI 工具配置”区域选择模型并补充配置：</p>
-          <ul>
-            <li><strong>Gemini</strong>：填写 API Key / 模型名称（可留空使用环境变量），选择温度。</li>
-            <li><strong>OpenAI</strong>：填写 API Key、Base URL（可用于自托管兼容接口）、模型名称与温度。</li>
-            <li><strong>不使用 AI 总结</strong>：选择“不使用 AI 总结”即可只生成 BibTeX。</li>
-          </ul>
+          <div class="card tutorial-step">
+            <div class="step-label">02</div>
+            <h2>填写检索表单</h2>
+            <ul>
+              <li>在“文献检索”区域输入检索式、时间范围与最大条数；内置示例可直接使用。</li>
+              <li>如需 AI 生成检索式，先在右侧输入需求，点击“生成”后预览并应用。</li>
+              <li>可在“工具选择”中切换文献源和 AI 模型；未使用 AI 时选择“不使用 AI 总结”。</li>
+            </ul>
+          </div>
 
-          <h2>4. 查看运行状态</h2>
-          <p>提交表单后，右侧“运行进度”卡片会实时展示检索、AI 调用、BibTeX 生成等步骤的成功/失败信息，便于快速定位问题。</p>
+          <div class="card tutorial-step">
+            <div class="step-label">03</div>
+            <h2>补充可选的 AI 配置</h2>
+            <p>需要中文摘要时，在表单中填写：</p>
+            <ul>
+              <li>Gemini：API Key、模型名（默认 <code>gemini-2.5-flash</code>）、温度。</li>
+              <li>OpenAI 兼容接口：API Key、Base URL、模型名与温度。</li>
+            </ul>
+            <p>未在表单填写时，也可以通过 <code>.env</code> 提供默认值。</p>
+          </div>
 
-          <h2>5. 导出与复用</h2>
-          <ul>
-            <li>复制或下载 BibTeX：使用按钮复制到剪贴板或直接下载文件。</li>
-            <li>查看详情：下方“文献条目”列表会显示标题、作者、期刊、摘要以及 AI 提供的中文总结与应用建议。</li>
-            <li>数据不会外传：页面不会将你的检索式或密钥发送到除所选数据源和 AI 接口之外的任何地方。</li>
-          </ul>
-
-          <h2>6. 快捷提示</h2>
-          <ul>
-            <li>若网络受限，可自定义 OpenAI Base URL 接入兼容接口。</li>
-            <li>使用 AI 自动生成检索式时，可在“AI 模型”中选择实际可用的接口并填好密钥，以获得最贴合语法的结果。</li>
-            <li>默认字体为 Inter / Noto Sans SC，确保在中文环境下也能获得清晰的排版效果。</li>
-            <li>状态卡片实时刷新，如果某步失败会立即标红，便于快速调整参数。</li>
-          </ul>
+          <div class="card tutorial-step">
+            <div class="step-label">04</div>
+            <h2>查看进度与结果</h2>
+            <ul>
+              <li>点击“开始检索”，右侧进度卡片会流式显示检索、AI 调用与 BibTeX 生成状态。</li>
+              <li>任务完成后，下方列表会展示文献详情、AI 摘要与引用建议。</li>
+              <li>使用“复制 BibTeX”或“下载 .bib”按钮即可复用结果，数据仅在本地处理。</li>
+            </ul>
+          </div>
         </div>
       </main>
     </div>
