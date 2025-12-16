@@ -41,89 +41,23 @@
           <section>
             <div class="card">
               <form method="post" id="search-form">
-                <div class="section-title"><span>01</span> 工具选择</div>
+                <div class="section-title"><span>01</span> AI 工具配置</div>
                 {% if error %}
                 <div class="error">{{ error }}</div>
                 {% endif %}
 
-                <div class="form-row form-row-inline">
-                  <div>
-                    <label for="source">文献数据源</label>
-                    <select id="source" name="source">
-                      {% for source in sources %}
-                      <option value="{{ source.name }}" {% if form.source == source.name %}selected{% endif %}>{{ source.display_name }}</option>
-                      {% endfor %}
-                    </select>
-                    <div class="hint hint-compact">当前内置 PubMed，后续可扩展其他来源。</div>
-                  </div>
-                  <div>
-                    <label for="ai_provider">AI 模型（摘要生成）</label>
-                    <select id="ai_provider" name="ai_provider">
-                      {% for provider in ai_providers %}
-                      <option value="{{ provider.name }}" {% if form.ai_provider == provider.name %}selected{% endif %}>{{ provider.display_name }}</option>
-                      {% endfor %}
-                    </select>
-                    <div class="hint hint-compact">选择 AI 模型后将尝试对摘要进行中文总结。</div>
-                  </div>
-                </div>
-
-                <div class="section-title"><span>02</span> 文献检索</div>
                 <div class="form-row">
-                  <label for="query">检索式（必填）</label>
-                  <textarea
-                    id="query"
-                    name="query"
-                    placeholder="例如：&quot;artificial intelligence&quot; AND (&quot;dental implants&quot; OR &quot;implant dentistry&quot; OR &quot;oral implantology&quot;)"
-                  >{{ form.query }}</textarea>
-                  <div class="hint">支持 PubMed 常用语法：AND / OR / 括号等。建议先用较宽泛的主题探索，再逐步收窄。</div>
-                </div>
-
-                <div class="card card-soft" style="margin-bottom: 14px">
-                  <div class="section-title"><span>AI</span> 自动生成检索式</div>
-                  <label for="intent">用自然语言描述你要找的文献</label>
-                  <textarea
-                    id="intent"
-                    name="intent"
-                    placeholder="例如：想找近五年关于人工智能辅助口腔种植外科规划的综述和随机对照研究"
-                  ></textarea>
-                  <div class="generator-actions">
-                    <button class="btn btn-secondary" id="btn-generate-query">AI 生成检索式</button>
-                    <div id="generator-output" class="generator-output">生成的检索式或提示会显示在这里。</div>
-                  </div>
-                </div>
-
-                <div class="form-row form-row-inline">
-                  <div>
-                    <label for="years">时间范围（最近几年）</label>
-                    <input id="years" name="years" type="number" min="1" max="50" value="{{ form.years }}" />
-                  </div>
-                  <div>
-                    <label for="max_results">最大文献条数</label>
-                    <input id="max_results" name="max_results" type="number" min="1" max="200" value="{{ form.max_results }}" />
-                  </div>
-                </div>
-
-                <div class="form-row form-row-inline form-row-optional">
-                  <div>
-                    <label for="email" class="optional-label">联系邮箱（推荐，PubMed 用）</label>
-                    <input id="email" name="email" type="text" placeholder="用于 NCBI E-utilities 合规使用" value="{{ form.email }}" />
-                    <div class="hint hint-compact">留空时会为当前请求生成一个随机邮箱，仅用于 PubMed API。</div>
-                  </div>
-                  <div>
-                    <label for="api_key" class="optional-label">API Key（可选，根据数据源填写）</label>
-                    <input id="api_key" name="api_key" type="text" placeholder="可选：例如 PubMed 的 NCBI API Key" value="{{ form.api_key }}" />
-                  </div>
+                  <label for="ai_provider">AI 模型（摘要生成与检索式生成）</label>
+                  <select id="ai_provider" name="ai_provider">
+                    {% for provider in ai_providers %}
+                    <option value="{{ provider.name }}" {% if form.ai_provider == provider.name %}selected{% endif %}>{{ provider.display_name }}</option>
+                    {% endfor %}
+                  </select>
+                  <div class="hint">优先配置和验证 AI 接口，检索式生成与摘要都会调用上方设置的模型。</div>
                 </div>
 
                 <div class="form-row">
-                  <label for="output">导出文件名（可选）</label>
-                  <input id="output" name="output" type="text" value="{{ form.output }}" />
-                  <div class="hint">留空则使用默认文件名（例如：pubmed_results.bib）。</div>
-                </div>
-
-                <div class="form-row">
-                  <div class="section-title"><span>03</span> AI 工具配置</div>
-                  <div id="ai-config-hint" class="hint">根据上方选择的 AI 模型自动切换配置方式。</div>
+                  <div id="ai-config-hint" class="hint">根据选择的 AI 模型自动切换配置方式。</div>
                   <div id="gemini-config" class="form-row-inline" style="margin-top: 8px">
                     <div>
                       <input
@@ -190,6 +124,72 @@
                         value="{{ form.openai_temperature }}"
                       />
                     </div>
+                  </div>
+                </div>
+
+                <div class="section-title"><span>02</span> 文献检索与数据源</div>
+
+                <div class="form-row form-row-inline">
+                  <div>
+                    <label for="source">文献数据源</label>
+                    <select id="source" name="source">
+                      {% for source in sources %}
+                      <option value="{{ source.name }}" {% if form.source == source.name %}selected{% endif %}>{{ source.display_name }}</option>
+                      {% endfor %}
+                    </select>
+                    <div class="hint hint-compact">当前内置 PubMed，后续可扩展其他来源。</div>
+                  </div>
+                  <div>
+                    <label for="years">时间范围（最近几年）</label>
+                    <input id="years" name="years" type="number" min="1" max="50" value="{{ form.years }}" />
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <label for="query">检索式（必填）</label>
+                  <textarea
+                    id="query"
+                    name="query"
+                    placeholder="例如：&quot;artificial intelligence&quot; AND (&quot;dental implants&quot; OR &quot;implant dentistry&quot; OR &quot;oral implantology&quot;)"
+                  >{{ form.query }}</textarea>
+                  <div class="hint">支持 PubMed 常用语法：AND / OR / 括号等。建议先用较宽泛的主题探索，再逐步收窄。</div>
+                </div>
+
+                <div class="card card-soft" style="margin-bottom: 14px">
+                  <div class="section-title"><span>AI</span> 自动生成检索式</div>
+                  <label for="intent">用自然语言描述你要找的文献</label>
+                  <textarea
+                    id="intent"
+                    name="intent"
+                    placeholder="例如：想找近五年关于人工智能辅助口腔种植外科规划的综述和随机对照研究"
+                  ></textarea>
+                  <div class="generator-actions">
+                    <button class="btn btn-secondary" id="btn-generate-query">AI 生成检索式</button>
+                    <div id="generator-output" class="generator-output">生成的检索式或提示会显示在这里（使用已配置的 AI 真实调用）。</div>
+                  </div>
+                </div>
+
+                <div class="form-row form-row-inline">
+                  <div>
+                    <label for="max_results">最大文献条数</label>
+                    <input id="max_results" name="max_results" type="number" min="1" max="200" value="{{ form.max_results }}" />
+                  </div>
+                  <div>
+                    <label for="output">导出文件名（可选）</label>
+                    <input id="output" name="output" type="text" value="{{ form.output }}" />
+                    <div class="hint hint-compact">留空则使用默认文件名（例如：pubmed_results.bib）。</div>
+                  </div>
+                </div>
+
+                <div class="form-row form-row-inline form-row-optional">
+                  <div>
+                    <label for="email" class="optional-label">联系邮箱（推荐，PubMed 用）</label>
+                    <input id="email" name="email" type="text" placeholder="用于 NCBI E-utilities 合规使用" value="{{ form.email }}" />
+                    <div class="hint hint-compact">留空时会为当前请求生成一个随机邮箱，仅用于 PubMed API。</div>
+                  </div>
+                  <div>
+                    <label for="api_key" class="optional-label">API Key（可选，根据数据源填写）</label>
+                    <input id="api_key" name="api_key" type="text" placeholder="可选：例如 PubMed 的 NCBI API Key" value="{{ form.api_key }}" />
                   </div>
                 </div>
 
