@@ -1,22 +1,15 @@
-# PubMed 文献检索与 BibTeX 导出脚本使用说明（v0.3.0）
+# Paper-Serch · PubMed 文献检索与 BibTeX 导出（v0.4.0）
 
-本脚本 `pubmed_bibtex.py`（当前版本：**v0.3.0**）用于：
+Paper-Serch 提供一套基于 Flask 的本地 Web 界面与 CLI 工具，帮助你快速检索 PubMed 文献并导出 BibTeX，同时可选调用 AI 生成中文摘要与应用建议。
 
-- 使用关键词在 PubMed 等数据源上检索文献
-- 限制时间范围（例如最近 5 年）  
-- 按 PubMed 的 “Best Match（最佳匹配）” 排序  
-- 选取前 N 篇文献并导出为 `.bib` 格式的 BibTeX 文件  
-- （可选）调用 Gemini 自动生成中文总结，写入 `annote` 字段
-- 预留多数据源与多 AI 模型接口，可在 Web 界面下拉选择
-- 通过一个简单的 Web 前端在浏览器里完成检索与导出
+### v0.4.0 更新亮点
 
-### v0.3.0 更新速览
+- **实时进度**：检索/AI/BibTeX 生成过程通过 SSE 流式推送到前端，运行时即可看到步骤状态，而不是等流程结束后一次性渲染。
+- **AI 检索式预览**：AI 生成的检索式先展示预览与提示，确认后再写入检索框，避免覆盖原有输入。
+- **可折叠的 PubMed 合规信息**：联系邮箱和 API Key 默认隐藏，通过“显示 PubMed 邮箱/API”按钮按需展开。
+- **简洁首页**：减少文字噪音，保留核心字段与按钮，关注检索、进度与结果。
 
-- **插件化架构**：新增 `paper_sources/` 与 `ai_providers/` 模块，文献来源与 AI 提供方均通过注册表管理，后续接入新站点/模型无需重写主流程。
-- **统一选择**：Web 表单支持选择“文献数据源”和“AI 模型”，默认可选“仅检索”“Gemini（自动检测配置）”“OpenAI 占位”。
-- **BibTeX 服务化**：`services/bibtex.py` 抽取了 BibTeX 生成逻辑，便于其他数据源或未来 API 复用。
-
-非常适合用于：快速收集某一主题近几年代表性文献，然后导入到 EndNote、Zotero、NoteExpress 等文献管理工具中。
+适用场景：快速收集某一主题近几年代表性文献，导入 EndNote、Zotero、NoteExpress 等工具，或在综述写作前获得中文摘要与引用建议。
 
 ---
 
@@ -68,11 +61,14 @@ python webapp.py
 ```
 
 浏览器访问 `http://127.0.0.1:5000`，在页面中输入检索式、年份和数量，点击“生成 BibTeX” 即可；Email 和 NCBI API Key 可选（不填则使用 `.env` / 环境变量）。若已配置 `GEMINI_API_KEY` 和 `GEMINI_MODEL`，页面会提示“已启用 Gemini AI 总结”，并将总结写入 `annote` 字段。
+界面要点：
 
-界面顶部可以选择文献数据源（当前内置 PubMed，后续可扩展其他站点）以及 AI 模型（内置占位的 OpenAI 选项和自动检测的 Gemini 配置），便于未来接入新的 API 而无需改动前端。
+- 运行进度卡片实时刷新（SSE 流），检索/AI/BibTeX 的状态会在执行过程中逐条显示。
+- “AI 自动生成检索式” 提供预览与“应用到检索式”按钮，不会直接覆盖当前输入。
+- PubMed 邮箱/API Key 默认隐藏，点击“显示 PubMed 邮箱/API”后展开，保持界面简洁。
+- 顶部下拉框可切换文献数据源（当前内置 PubMed）与 AI 模型（Gemini/OpenAI/不使用 AI）。
 
-> 提示：前端表单会预填示例检索式 “"artificial intelligence" AND ("dental implants" OR "implant dentistry" OR "oral implantology")”，
-> 若未填写则后端会使用 `.env` 中的配置作为回退值。
+> 前端表单预填了示例检索式 “"artificial intelligence" AND ("dental implants" OR "implant dentistry" OR "oral implantology")”，若留空后端会使用 `.env`/默认值作为回退。
 
 ---
 

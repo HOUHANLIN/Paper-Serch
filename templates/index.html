@@ -27,14 +27,9 @@
 
       <main class="page">
         <div class="headline">
-          <div class="headline-pill">
-            <span>Research</span>
-            <span>Literature search</span>
-          </div>
+          <div class="headline-pill">快速检索 · 本地工具</div>
           <h1 class="headline-title">论文检索与 BibTeX 导出</h1>
-          <div class="subtitle">
-            在浏览器中清晰配置检索式、时间范围与 AI 模型，快速生成结构化 BibTeX 与中文摘要，为综述与论文写作整理高质量参考文献。
-          </div>
+          <div class="subtitle">配置检索、时间范围与 AI 摘要，生成 BibTeX 与中文总结。</div>
         </div>
 
         <div class="layout">
@@ -42,18 +37,15 @@
             <div class="card">
               <form method="post" id="search-form">
                 <div class="section-title"><span>01</span> AI 工具配置</div>
-                {% if error %}
-                <div class="error">{{ error }}</div>
-                {% endif %}
+                <div class="error" id="error-box" {% if not error %}style="display: none"{% endif %}>{{ error }}</div>
 
                 <div class="form-row">
-                  <label for="ai_provider">AI 模型（摘要生成与检索式生成）</label>
+                  <label for="ai_provider">AI 模型</label>
                   <select id="ai_provider" name="ai_provider">
                     {% for provider in ai_providers %}
                     <option value="{{ provider.name }}" {% if form.ai_provider == provider.name %}selected{% endif %}>{{ provider.display_name }}</option>
                     {% endfor %}
                   </select>
-                  <div class="hint">优先配置和验证 AI 接口，检索式生成与摘要都会调用上方设置的模型。</div>
                 </div>
 
                 <div class="form-row">
@@ -137,7 +129,6 @@
                       <option value="{{ source.name }}" {% if form.source == source.name %}selected{% endif %}>{{ source.display_name }}</option>
                       {% endfor %}
                     </select>
-                    <div class="hint hint-compact">当前内置 PubMed，后续可扩展其他来源。</div>
                   </div>
                   <div>
                     <label for="years">时间范围（最近几年）</label>
@@ -146,13 +137,12 @@
                 </div>
 
                 <div class="form-row">
-                  <label for="query">检索式（必填）</label>
+                  <label for="query">检索式</label>
                   <textarea
                     id="query"
                     name="query"
                     placeholder="例如：&quot;artificial intelligence&quot; AND (&quot;dental implants&quot; OR &quot;implant dentistry&quot; OR &quot;oral implantology&quot;)"
                   >{{ form.query }}</textarea>
-                  <div class="hint">支持 PubMed 常用语法：AND / OR / 括号等。建议先用较宽泛的主题探索，再逐步收窄。</div>
                 </div>
 
                 <div class="card card-soft" style="margin-bottom: 14px">
@@ -165,7 +155,13 @@
                   ></textarea>
                   <div class="generator-actions">
                     <button class="btn btn-secondary" id="btn-generate-query">AI 生成检索式</button>
-                    <div id="generator-output" class="generator-output">生成的检索式或提示会显示在这里（使用已配置的 AI 真实调用）。</div>
+                    <div id="generator-output" class="generator-output">
+                      <div class="generator-message" id="generator-message">生成的检索式会显示在这里。</div>
+                      <pre class="generator-preview" id="generator-preview" style="display: none"></pre>
+                      <div class="generator-preview-actions" id="generator-preview-actions" style="display: none">
+                        <button class="btn btn-primary btn-apply" id="btn-apply-query" type="button">应用到检索式</button>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -177,26 +173,27 @@
                   <div>
                     <label for="output">导出文件名（可选）</label>
                     <input id="output" name="output" type="text" value="{{ form.output }}" />
-                    <div class="hint hint-compact">留空则使用默认文件名（例如：pubmed_results.bib）。</div>
                   </div>
                 </div>
 
                 <div class="form-row form-row-inline form-row-optional">
-                  <div>
-                    <label for="email" class="optional-label">联系邮箱（推荐，PubMed 用）</label>
-                    <input id="email" name="email" type="text" placeholder="用于 NCBI E-utilities 合规使用" value="{{ form.email }}" />
-                    <div class="hint hint-compact">留空时会为当前请求生成一个随机邮箱，仅用于 PubMed API。</div>
-                  </div>
-                  <div>
-                    <label for="api_key" class="optional-label">API Key（可选，根据数据源填写）</label>
-                    <input id="api_key" name="api_key" type="text" placeholder="可选：例如 PubMed 的 NCBI API Key" value="{{ form.api_key }}" />
+                  <button class="link-button" id="toggle-contact" type="button">显示 PubMed 邮箱/API</button>
+                  <div id="contact-advanced" class="contact-advanced" style="display: none">
+                    <div>
+                      <label for="email" class="optional-label">联系邮箱（可选）</label>
+                      <input id="email" name="email" type="text" placeholder="用于 PubMed 合规" value="{{ form.email }}" />
+                    </div>
+                    <div>
+                      <label for="api_key" class="optional-label">API Key（可选）</label>
+                      <input id="api_key" name="api_key" type="text" placeholder="NCBI API Key" value="{{ form.api_key }}" />
+                    </div>
                   </div>
                 </div>
 
                 <textarea id="bibtex-hidden" name="bibtex_text" style="display: none">{{ bibtex_text }}</textarea>
 
-                <div class="form-row" style="display: flex; gap: 10px; align-items: center">
-                  <button class="btn btn-primary" type="submit">检索并生成 BibTeX</button>
+                <div class="form-row form-actions" style="display: flex; gap: 10px; align-items: center">
+                  <button class="btn btn-primary" id="submit-btn" type="submit">检索并生成 BibTeX</button>
                   <button class="btn btn-secondary" type="button" id="copy-btn" onclick="copyBibtex()" {% if not bibtex_text %}disabled{% endif %}>复制 BibTeX</button>
                   <button class="btn btn-secondary export-btn" type="submit" formaction="/download" {% if not bibtex_text %}disabled{% endif %}>导出 BibTeX 文件</button>
                 </div>
@@ -207,28 +204,21 @@
           <section>
             <div class="card card-soft">
               <div class="section-title"><span>状态</span> 运行进度</div>
-              <ul class="status-list">
-                {% if status_log %}
-                {% for item in status_log %}
-                <li class="status-item">
-                  <span class="status-icon {{ 'success' if item.status == 'success' else 'error' if item.status == 'error' else 'pending' }}">
-                    {% if item.status == 'success' %}✓{% elif item.status == 'error' %}!{% else %}…{% endif %}
-                  </span>
-                  <div class="status-text">
-                    <strong>{{ item.step }}</strong>
-                    <span>{{ item.detail }}</span>
-                  </div>
-                </li>
-                {% endfor %}
-                {% else %}
-                <li class="status-item">
+              <div class="runtime" id="runtime" data-tone="idle">
+                <div class="runtime-dot" aria-hidden="true"></div>
+                <div class="runtime-text">
+                  <span id="runtime-state">等待开始</span>
+                  <span id="runtime-elapsed">00:00</span>
+                </div>
+              </div>
+              <ul class="status-list" id="status-list">
+                <li class="status-item" id="status-placeholder">
                   <span class="status-icon pending">…</span>
                   <div class="status-text">
                     <strong>等待开始</strong>
-                    <span>提交表单后会展示检索、AI 调用与导出等进度。</span>
+                    <span>提交后实时显示检索、AI 与导出进度。</span>
                   </div>
                 </li>
-                {% endif %}
               </ul>
             </div>
 
@@ -236,40 +226,41 @@
               <div class="bibtex-header">
                 <div>
                   <div class="section-title"><span>结果</span> BibTeX 输出</div>
-                  <span>共 {{ count }} 条记录</span>
+                  <span id="result-count">共 {{ count }} 条记录</span>
                 </div>
               </div>
               <textarea id="bibtex-output" class="bibtex-output" rows="18" readonly>{{ bibtex_text }}</textarea>
-              <div class="hint">可直接复制到 .bib 文件，或导入 Zotero / EndNote / NoteExpress 等工具。</div>
             </div>
 
             <div class="card">
               <div class="article-list-title">文献条目</div>
-              {% if articles %}
-              {% for article in articles %}
-              <div class="article">
-                <div class="article-title">
-                  {% if article.url %}
-                  <a href="{{ article.url }}" target="_blank" rel="noreferrer">{{ article.title }}</a>
-                  {% else %}
-                  {{ article.title }}
+              <div id="article-container">
+                {% if articles %}
+                {% for article in articles %}
+                <div class="article">
+                  <div class="article-title">
+                    {% if article.url %}
+                    <a href="{{ article.url }}" target="_blank" rel="noreferrer">{{ article.title }}</a>
+                    {% else %}
+                    {{ article.title }}
+                    {% endif %}
+                  </div>
+                  <div class="article-meta">{{ article.authors }} · {{ article.journal }} · {{ article.year }} {% if article.pmid %}<span class="badge">PMID: {{ article.pmid }}</span>{% endif %}</div>
+                  {% if article.abstract %}
+                  <div class="article-abstract"><span class="article-label">摘要：</span>{{ article.abstract }}</div>
+                  {% endif %}
+                  {% if article.summary_zh %}
+                  <div class="article-summary"><span class="article-summary-label">AI 总结</span>{{ article.summary_zh }}</div>
+                  {% endif %}
+                  {% if article.usage_zh %}
+                  <div class="article-summary article-usage"><span class="article-summary-label">应用建议</span>{{ article.usage_zh }}</div>
                   {% endif %}
                 </div>
-                <div class="article-meta">{{ article.authors }} · {{ article.journal }} · {{ article.year }} {% if article.pmid %}<span class="badge">PMID: {{ article.pmid }}</span>{% endif %}</div>
-                {% if article.abstract %}
-                <div class="article-abstract"><span class="article-label">摘要：</span>{{ article.abstract }}</div>
-                {% endif %}
-                {% if article.summary_zh %}
-                <div class="article-summary"><span class="article-summary-label">AI 总结</span>{{ article.summary_zh }}</div>
-                {% endif %}
-                {% if article.usage_zh %}
-                <div class="article-summary article-usage"><span class="article-summary-label">应用建议</span>{{ article.usage_zh }}</div>
+                {% endfor %}
+                {% else %}
+                <div class="hint">提交后将在此展示检索到的文献列表与 AI 总结。</div>
                 {% endif %}
               </div>
-              {% endfor %}
-              {% else %}
-              <div class="hint">提交后将在此展示检索到的文献列表与 AI 总结。</div>
-              {% endif %}
             </div>
           </section>
         </div>
@@ -282,6 +273,7 @@
 
     <script>
       window.sourceDefaults = {{ source_defaults | tojson }};
+      window.initialStatusLog = {{ status_log | tojson }};
     </script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
   </body>
