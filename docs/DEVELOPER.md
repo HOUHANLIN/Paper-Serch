@@ -31,7 +31,8 @@
 
 - `webapp.py` + `templates/index.html`
   - Flask Web 界面：表单可选择“文献数据源”“AI 模型”，统一走注册表。
-  - 将检索结果与 AI 总结渲染为概要列表与 BibTeX 文本。
+  - `/api/search_stream` 提供 SSE 流式搜索：生成器在“准备检索/检索完成/AI 摘要/BibTeX 生成”等节点推送事件，前端实时渲染状态。
+  - AI 检索式生成增加预览/确认按钮；PubMed 邮箱/API 输入默认折叠，通过显式按钮展开。
 
 - 其他：
   - `gemini_summary.py`：独立的 Gemini 终端调用示例。

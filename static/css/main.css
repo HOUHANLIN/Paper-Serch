@@ -125,16 +125,15 @@ body {
   border-radius: 999px;
   background: rgba(193, 95, 60, 0.06);
   border: 1px solid rgba(193, 95, 60, 0.4);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
+  font-size: 12px;
+  letter-spacing: 0.08em;
   color: #4a332b;
 }
 
 .subtitle {
   color: var(--np-text-muted);
-  font-size: 14px;
-  margin-bottom: 24px;
+  font-size: 13px;
+  margin-bottom: 20px;
   max-width: 720px;
 }
 
@@ -258,6 +257,27 @@ textarea {
   opacity: 0.55;
   cursor: default;
   box-shadow: none;
+}
+
+.link-button {
+  background: transparent;
+  border: none;
+  color: var(--np-deep-blue);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.contact-advanced {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  width: 100%;
+}
+
+.form-actions {
+  flex-wrap: wrap;
 }
 
 .export-btn {
@@ -491,6 +511,7 @@ textarea {
   gap: 10px;
   align-items: center;
   margin-top: 6px;
+  justify-content: space-between;
 }
 
 .generator-output {
@@ -501,6 +522,26 @@ textarea {
   padding: 10px;
   font-size: 12px;
   color: #111827;
+}
+
+.generator-preview {
+  background: #fff;
+  border-radius: 6px;
+  padding: 10px;
+  font-size: 13px;
+  color: #2c2c2c;
+  margin: 8px 0 4px;
+  border: 1px solid #e1ded6;
+  white-space: pre-wrap;
+}
+
+.generator-preview-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.generator-preview-actions .btn-apply {
+  padding: 8px 12px;
 }
 
 .tutorial-body {
