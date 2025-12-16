@@ -117,6 +117,47 @@
                       />
                     </div>
                   </div>
+                  <div id="ollama-config" class="form-row-inline" style="margin-top: 8px; display: none">
+                    <div>
+                      <input
+                        id="ollama_api_key"
+                        name="ollama_api_key"
+                        type="text"
+                        placeholder="可选 API Key，默认使用 ollama"
+                        value="{{ form.ollama_api_key }}"
+                      />
+                    </div>
+                    <div>
+                      <input
+                        id="ollama_base_url"
+                        name="ollama_base_url"
+                        type="text"
+                        placeholder="本地 Ollama Base URL，默认 http://localhost:11434/v1"
+                        value="{{ form.ollama_base_url }}"
+                      />
+                    </div>
+                    <div>
+                      <input
+                        id="ollama_model"
+                        name="ollama_model"
+                        type="text"
+                        placeholder="模型名称，默认 llama3.1"
+                        value="{{ form.ollama_model }}"
+                      />
+                    </div>
+                    <div>
+                      <input
+                        id="ollama_temperature"
+                        name="ollama_temperature"
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="1"
+                        placeholder="温度，默认 0"
+                        value="{{ form.ollama_temperature }}"
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 <div class="section-title"><span>02</span> 文献检索与数据源</div>

@@ -16,6 +16,7 @@ from flask import (
 from openai import OpenAI
 
 from ai_providers.gemini import GeminiProvider
+from ai_providers.ollama import OllamaProvider
 from ai_providers.openai_provider import OpenAIProvider
 from ai_providers.registry import get_provider, list_providers
 from paper_sources import ArticleInfo
@@ -154,6 +155,10 @@ def _apply_ai_summary(
     openai_base_url: str,
     openai_model: str,
     openai_temperature: float,
+    ollama_api_key: str,
+    ollama_base_url: str,
+    ollama_model: str,
+    ollama_temperature: float,
 ) -> str:
     provider = get_provider(provider_name)
     if not provider or provider.name == "none":
@@ -171,6 +176,13 @@ def _apply_ai_summary(
             base_url=openai_base_url or None,
             model=openai_model or None,
             temperature=openai_temperature,
+        )
+    if isinstance(provider, OllamaProvider):
+        provider.set_config(
+            api_key=ollama_api_key or None,
+            base_url=ollama_base_url or None,
+            model=ollama_model or None,
+            temperature=ollama_temperature,
         )
 
     applied = 0
@@ -200,6 +212,10 @@ def _perform_search_stream(
     openai_base_url: str,
     openai_model: str,
     openai_temperature: float,
+    ollama_api_key: str,
+    ollama_base_url: str,
+    ollama_model: str,
+    ollama_temperature: float,
     output: str,
 ) -> Generator[Dict[str, object], None, None]:
     status_log: List[Dict[str, str]] = []
@@ -251,6 +267,10 @@ def _perform_search_stream(
                 openai_base_url,
                 openai_model,
                 openai_temperature,
+                ollama_api_key,
+                ollama_base_url,
+                ollama_model,
+                ollama_temperature,
             )
             ai_entry_status = "success" if "失败" not in ai_status else "error"
             yield {"type": "status", "entry": _emit("AI 摘要", ai_entry_status, ai_status)}
@@ -357,6 +377,27 @@ def _generate_query_via_openai(prompt: str, api_key: str, base_url: str, model: 
         return ""
 
 
+def _generate_query_via_ollama(prompt: str, api_key: str, base_url: str, model: str, temperature: float) -> str:
+    try:
+        client = OpenAI(api_key=api_key or "ollama", base_url=base_url or "http://localhost:11434/v1")
+        completion = client.chat.completions.create(
+            model=model or "llama3.1",
+            temperature=temperature,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "你是检索词专家，只输出最终的检索式文本，不要解释。",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=320,
+        )
+        content = completion.choices[0].message.content if completion.choices else ""
+        return (content or "").strip()
+    except Exception:
+        return ""
+
+
 def _generate_query_via_gemini(prompt: str, api_key: str, model: str, temperature: float) -> str:
     provider = GeminiProvider()
     provider.set_config(api_key=api_key, model=model or None, temperature=temperature)
@@ -391,6 +432,10 @@ def _generate_query_terms(
     openai_base_url: str,
     openai_model: str,
     openai_temperature: float,
+    ollama_api_key: str,
+    ollama_base_url: str,
+    ollama_model: str,
+    ollama_temperature: float,
 ) -> Tuple[str, str]:
     def _normalize(value: str) -> str:
         return (value or "").strip()
@@ -430,6 +475,12 @@ def _generate_query_terms(
     resolved_gemini_model = _normalize(gemini_model) or gemini_defaults.model
     resolved_gemini_temperature = gemini_temperature if gemini_temperature is not None else gemini_defaults.temperature
 
+    ollama_defaults = OllamaProvider()
+    resolved_ollama_api_key = _normalize(ollama_api_key) or (ollama_defaults.api_key or "ollama")
+    resolved_ollama_base_url = _normalize_optional(ollama_base_url) or ollama_defaults.base_url or ""
+    resolved_ollama_model = _normalize(ollama_model) or ollama_defaults.model
+    resolved_ollama_temperature = ollama_temperature if ollama_temperature is not None else ollama_defaults.temperature
+
     if ai_provider == "openai":
         if not resolved_openai_api_key:
             return "", "未配置 OpenAI API Key，无法调用真实接口生成检索式。"
@@ -456,6 +507,18 @@ def _generate_query_terms(
         if ai_query:
             return ai_query, "已使用 Gemini 实时生成的检索式"
         return "", "Gemini 生成检索式失败，请检查配置。"
+
+    if ai_provider == "ollama":
+        ai_query = _generate_query_via_ollama(
+            prompt,
+            resolved_ollama_api_key,
+            resolved_ollama_base_url,
+            resolved_ollama_model,
+            resolved_ollama_temperature,
+        )
+        if ai_query:
+            return ai_query, "已使用本地 Ollama 生成的检索式"
+        return "", "Ollama 生成检索式失败，请检查服务是否可用。"
 
     # fallback to rule-based builder when AI 不可用
     if source_name == "pubmed":
@@ -484,6 +547,10 @@ def _resolve_form(form_data) -> Tuple[Dict[str, str], Dict[str, object]]:
     openai_base_url_raw = (form_data.get("openai_base_url") or "").strip()
     openai_model_raw = (form_data.get("openai_model") or "").strip()
     openai_temperature_raw = (form_data.get("openai_temperature") or "").strip()
+    ollama_api_key_raw = (form_data.get("ollama_api_key") or "").strip()
+    ollama_base_url_raw = (form_data.get("ollama_base_url") or "").strip()
+    ollama_model_raw = (form_data.get("ollama_model") or "").strip()
+    ollama_temperature_raw = (form_data.get("ollama_temperature") or "").strip()
 
     # 默认邮箱解析逻辑：
     # 1. 若用户在表单中填写，则优先使用用户输入。
@@ -516,6 +583,10 @@ def _resolve_form(form_data) -> Tuple[Dict[str, str], Dict[str, object]]:
         "openai_base_url": openai_base_url_raw,
         "openai_model": openai_model_raw,
         "openai_temperature": _parse_float(openai_temperature_raw, 0.0),
+        "ollama_api_key": ollama_api_key_raw,
+        "ollama_base_url": ollama_base_url_raw,
+        "ollama_model": ollama_model_raw,
+        "ollama_temperature": _parse_float(ollama_temperature_raw, 0.0),
     }
 
     form = {
@@ -536,6 +607,10 @@ def _resolve_form(form_data) -> Tuple[Dict[str, str], Dict[str, object]]:
         "openai_base_url": openai_base_url_raw,
         "openai_model": openai_model_raw,
         "openai_temperature": openai_temperature_raw,
+        "ollama_api_key": ollama_api_key_raw,
+        "ollama_base_url": ollama_base_url_raw,
+        "ollama_model": ollama_model_raw,
+        "ollama_temperature": ollama_temperature_raw,
     }
 
     return form, resolved
@@ -636,6 +711,10 @@ def generate_query():
         openai_base_url=(data.get("openai_base_url") or "").strip(),
         openai_model=(data.get("openai_model") or "").strip(),
         openai_temperature=_parse_float(data.get("openai_temperature"), 0.0),
+        ollama_api_key=(data.get("ollama_api_key") or "").strip(),
+        ollama_base_url=(data.get("ollama_base_url") or "").strip(),
+        ollama_model=(data.get("ollama_model") or "").strip(),
+        ollama_temperature=_parse_float(data.get("ollama_temperature"), 0.0),
     )
     return jsonify({"query": query, "message": message})
 
