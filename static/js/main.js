@@ -65,8 +65,10 @@ function syncAiConfigState() {
   const value = providerSelect ? providerSelect.value : '';
   const isGemini = value === 'gemini';
   const isOpenAI = value === 'openai';
+  const isOllama = value === 'ollama';
   const geminiBlock = document.getElementById('gemini-config');
   const openaiBlock = document.getElementById('openai-config');
+  const ollamaBlock = document.getElementById('ollama-config');
   const hint = document.getElementById('ai-config-hint');
 
   const geminiFields = [
@@ -80,6 +82,12 @@ function syncAiConfigState() {
     document.getElementById('openai_model'),
     document.getElementById('openai_temperature'),
   ];
+  const ollamaFields = [
+    document.getElementById('ollama_api_key'),
+    document.getElementById('ollama_base_url'),
+    document.getElementById('ollama_model'),
+    document.getElementById('ollama_temperature'),
+  ];
 
   geminiFields.forEach((el) => {
     if (!el) return;
@@ -91,12 +99,20 @@ function syncAiConfigState() {
     el.disabled = !isOpenAI;
     el.style.opacity = isOpenAI ? '1' : '0.5';
   });
+  ollamaFields.forEach((el) => {
+    if (!el) return;
+    el.disabled = !isOllama;
+    el.style.opacity = isOllama ? '1' : '0.5';
+  });
 
   if (geminiBlock) {
     geminiBlock.style.display = isGemini ? 'flex' : 'none';
   }
   if (openaiBlock) {
     openaiBlock.style.display = isOpenAI ? 'flex' : 'none';
+  }
+  if (ollamaBlock) {
+    ollamaBlock.style.display = isOllama ? 'flex' : 'none';
   }
 
   if (hint) {
@@ -106,6 +122,8 @@ function syncAiConfigState() {
       hint.textContent = '当前未启用 AI 总结：仅执行检索与 BibTeX 生成。';
     } else if (value === 'openai') {
       hint.textContent = '当前使用 OpenAI 实时调用：可填写 Base URL/模型名称以兼容自托管接口。';
+    } else if (value === 'ollama') {
+      hint.textContent = '当前使用本地 Ollama：请确保已启动 Ollama 服务，Base URL 留空则默认 http://localhost:11434/v1。';
     } else {
       hint.textContent = '当前 AI 模型暂不需要额外配置。';
     }
@@ -261,6 +279,10 @@ async function generateQuery() {
       openai_base_url: document.getElementById('openai_base_url')?.value || '',
       openai_model: document.getElementById('openai_model')?.value || '',
       openai_temperature: document.getElementById('openai_temperature')?.value || '',
+      ollama_api_key: document.getElementById('ollama_api_key')?.value || '',
+      ollama_base_url: document.getElementById('ollama_base_url')?.value || '',
+      ollama_model: document.getElementById('ollama_model')?.value || '',
+      ollama_temperature: document.getElementById('ollama_temperature')?.value || '',
     };
 
     const resp = await fetch('/api/generate_query', {
