@@ -2,9 +2,16 @@ import json
 import os
 import re
 import secrets
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Generator, List, Optional, Tuple
 
-from flask import Flask, Response, jsonify, render_template, request
+from flask import (
+    Flask,
+    Response,
+    jsonify,
+    render_template,
+    request,
+    stream_with_context,
+)
 
 from openai import OpenAI
 
@@ -45,6 +52,10 @@ def _get_default_api_key(source_name: str) -> str:
 
 def _status_log_entry(step: str, status: str, detail: str) -> Dict[str, str]:
     return {"step": step, "status": status, "detail": detail}
+
+
+def _sse_message(event: str, data: Dict[str, object]) -> str:
+    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
 def _get_source_defaults(source_name: str) -> Dict[str, str | int]:
@@ -171,7 +182,7 @@ def _apply_ai_summary(
     return f"已使用 {provider.display_name} 生成 {applied} 条摘要" if applied else "AI 未返回摘要"
 
 
-def _perform_search(
+def _perform_search_stream(
     *,
     source_name: str,
     query: str,
@@ -187,45 +198,77 @@ def _perform_search(
     openai_base_url: str,
     openai_model: str,
     openai_temperature: float,
-    status_log: List[Dict[str, str]],
-) -> Tuple[str, int, List[ArticleInfo]]:
-    source = get_source(source_name)
-    if not source:
-        raise RuntimeError(f"未找到名为 {source_name} 的文献数据源")
+    output: str,
+) -> Generator[Dict[str, object], None, None]:
+    status_log: List[Dict[str, str]] = []
 
-    status_log.append(_status_log_entry("准备检索", "success", f"数据源：{source.display_name}"))
-    articles = source.search(
-        query=query,
-        years=years,
-        max_results=max_results,
-        email=email or None,
-        api_key=api_key or None,
-    )
-    if not articles:
-        status_log.append(_status_log_entry("检索完成", "error", "没有找到符合条件的记录"))
-        return "", 0, []
-    status_log.append(_status_log_entry("检索完成", "success", f"共获取 {len(articles)} 条候选文献"))
+    def _emit(step: str, status: str, detail: str) -> Dict[str, str]:
+        entry = _status_log_entry(step, status, detail)
+        status_log.append(entry)
+        return entry
 
-    ai_status = _apply_ai_summary(
-        articles,
-        ai_provider,
-        gemini_api_key,
-        gemini_model,
-        gemini_temperature,
-        openai_api_key,
-        openai_base_url,
-        openai_model,
-        openai_temperature,
-    )
-    status_log.append(_status_log_entry("AI 摘要", "success", ai_status))
+    try:
+        source = get_source(source_name)
+        if not source:
+            raise RuntimeError(f"未找到名为 {source_name} 的文献数据源")
 
-    # 清理 annote，去掉冗余符号便于 BibTeX 展示
-    for info in articles:
-        info.annote, _, _ = _normalize_annote(info.annote)
+        yield {"type": "status", "entry": _emit("准备检索", "success", f"数据源：{source.display_name}")}
 
-    bibtex_text, count = build_bibtex_entries(articles)
-    status_log.append(_status_log_entry("BibTeX 生成", "success", f"生成 {count} 条记录"))
-    return bibtex_text, count, articles
+        articles = source.search(
+            query=query,
+            years=years,
+            max_results=max_results,
+            email=email or None,
+            api_key=api_key or None,
+        )
+        if not articles:
+            yield {
+                "type": "status",
+                "entry": _emit("检索完成", "error", "没有找到符合条件的记录"),
+                "status_log": status_log,
+            }
+            yield {"type": "error", "message": "没有找到符合条件的记录", "status_log": status_log}
+            return
+
+        yield {
+            "type": "status",
+            "entry": _emit("检索完成", "success", f"共获取 {len(articles)} 条候选文献"),
+        }
+
+        ai_status = _apply_ai_summary(
+            articles,
+            ai_provider,
+            gemini_api_key,
+            gemini_model,
+            gemini_temperature,
+            openai_api_key,
+            openai_base_url,
+            openai_model,
+            openai_temperature,
+        )
+        yield {"type": "status", "entry": _emit("AI 摘要", "success", ai_status)}
+
+        for info in articles:
+            info.annote, _, _ = _normalize_annote(info.annote)
+
+        bibtex_text, count = build_bibtex_entries(articles)
+        yield {"type": "status", "entry": _emit("BibTeX 生成", "success", f"生成 {count} 条记录")}
+
+        view_articles = [_build_view_article(info) for info in articles]
+        yield {
+            "type": "result",
+            "bibtex_text": bibtex_text,
+            "count": count,
+            "articles": view_articles,
+            "status_log": status_log,
+        }
+    except Exception as exc:  # pylint: disable=broad-except
+        yield {
+            "type": "status",
+            "entry": _emit("流程中断", "error", str(exc)),
+            "status_log": status_log,
+        }
+        yield {"type": "error", "message": str(exc), "status_log": status_log}
 
 
 def _parse_int(value: str, default_value: int) -> int:
@@ -478,6 +521,25 @@ def _resolve_form(form_data) -> Tuple[Dict[str, str], Dict[str, object]]:
     return form, resolved
 
 
+def _consume_search_stream(resolved: Dict[str, object]) -> Tuple[str, str, int, List[Dict[str, str]], List[Dict[str, str]]]:
+    error = ""
+    bibtex_text = ""
+    count = 0
+    articles: List[Dict[str, str]] = []
+    status_log: List[Dict[str, str]] = []
+
+    for event in _perform_search_stream(**resolved):
+        if event.get("type") == "status" and event.get("entry"):
+            status_log.append(event["entry"])
+        if event.get("type") == "result":
+            bibtex_text = str(event.get("bibtex_text") or "")
+            count = int(event.get("count") or 0)
+            articles = event.get("articles") or []
+        if event.get("type") == "error" and event.get("message"):
+            error = str(event.get("message"))
+    return error, bibtex_text, count, articles, status_log
+
+
 # ---------- 路由 ----------
 
 
@@ -499,26 +561,7 @@ def index():
             error = "请输入检索式。"
         else:
             try:
-                bibtex_text, count, found_articles = _perform_search(
-                    source_name=resolved["source"],
-                    query=resolved["query"],
-                    years=resolved["years"],
-                    max_results=resolved["max_results"],
-                    email=resolved["email"],
-                    api_key=resolved["api_key"],
-                    ai_provider=resolved["ai_provider"],
-                    gemini_api_key=resolved.get("gemini_api_key", ""),
-                    gemini_model=resolved.get("gemini_model", ""),
-                    gemini_temperature=resolved.get("gemini_temperature", 0.0),
-                    openai_api_key=resolved.get("openai_api_key", ""),
-                    openai_base_url=resolved.get("openai_base_url", ""),
-                    openai_model=resolved.get("openai_model", ""),
-                    openai_temperature=resolved.get("openai_temperature", 0.0),
-                    status_log=status_log,
-                )
-                articles = [_build_view_article(info) for info in found_articles]
-                if not count:
-                    error = "没有检索到符合条件的文献。"
+                error, bibtex_text, count, articles, status_log = _consume_search_stream(resolved)
             except Exception as exc:  # pylint: disable=broad-except
                 error = f"检索或生成 BibTeX 时出错：{exc}"
                 status_log.append(_status_log_entry("流程中断", "error", str(exc)))
@@ -575,6 +618,21 @@ def generate_query():
         openai_temperature=_parse_float(data.get("openai_temperature"), 0.0),
     )
     return jsonify({"query": query, "message": message})
+
+
+@app.route("/api/search_stream", methods=["POST"])
+def search_stream():
+    form_data = request.form or {}
+    _, resolved = _resolve_form(form_data)
+
+    def event_stream():
+        for event in _perform_search_stream(**resolved):
+            event_type = str(event.get("type") or "message")
+            payload = {k: v for k, v in event.items() if k != "type"}
+            yield _sse_message(event_type, payload)
+
+    headers = {"Cache-Control": "no-cache", "Connection": "keep-alive"}
+    return Response(stream_with_context(event_stream()), mimetype="text/event-stream", headers=headers)
 
 
 @app.route("/tutorial", methods=["GET"])
