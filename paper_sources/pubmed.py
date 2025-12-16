@@ -89,7 +89,15 @@ class PubMedSource(PaperSource):
 
     @staticmethod
     def _get_text(elem: Optional[ET.Element]) -> str:
-        return elem.text.strip() if elem is not None and elem.text else ""
+        if elem is None:
+            return ""
+
+        parts = []
+        for text in elem.itertext():
+            text = (text or "").strip()
+            if text:
+                parts.append(text)
+        return " ".join(parts)
 
     def _extract_article_info(self, article: ET.Element) -> ArticleInfo:
         medline = article.find("MedlineCitation")
