@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>Paper-Serch · 使用教程</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="topbar">
+        <div class="topbar-inner">
+          <div class="brand">
+            <div class="brand-mark"></div>
+            <div>
+              <div class="brand-text-sub">Paper-Serch</div>
+              <div class="brand-text-main">Literature &amp; AI summaries</div>
+            </div>
+          </div>
+          <div class="topbar-nav">
+            <a class="topbar-link" href="{{ url_for('index') }}">返回首页</a>
+          </div>
+          <div class="topbar-right">TUTORIAL · QUICK START</div>
+        </div>
+      </header>
+
+      <main class="page">
+        <div class="headline">
+          <div class="headline-pill">
+            <span>Guide</span>
+            <span>Walkthrough</span>
+          </div>
+          <h1 class="headline-title">Paper-Serch 使用教程</h1>
+          <div class="subtitle">按照步骤完成环境配置、检索、AI 总结与 BibTeX 导出，帮助你快速熟悉整个流程。</div>
+        </div>
+
+        <div class="card tutorial-body">
+          <h2>1. 基础准备</h2>
+          <ul>
+            <li>安装依赖：<code>pip install -r requirements.txt</code></li>
+            <li>在项目根目录配置 <code>.env</code>（可参考 <code>.env.example</code>）。</li>
+            <li>启动 Web 前端：<code>python webapp.py</code> 后访问 <code>http://127.0.0.1:5000</code>。</li>
+          </ul>
+
+          <h2>2. 配置检索</h2>
+          <p>在首页的“文献检索”区域填写检索式、时间范围和最大条数。你可以直接输入 PubMed 语法，也可以在“AI 自动生成检索式”中用自然语言描述需求，点击按钮快速生成可用的检索词。</p>
+          <p>表单会根据不同数据源自动补全默认邮箱、API Key 和输出文件名，确保规范调用接口。</p>
+
+          <h2>3. 选择 AI 模型</h2>
+          <p>在“工具选择”与“AI 工具配置”区域选择模型并补充配置：</p>
+          <ul>
+            <li><strong>Gemini</strong>：填写 API Key / 模型名称（可留空使用环境变量），选择温度。</li>
+            <li><strong>OpenAI</strong>：填写 API Key、Base URL（可用于自托管兼容接口）、模型名称与温度。</li>
+            <li><strong>不使用 AI 总结</strong>：选择“不使用 AI 总结”即可只生成 BibTeX。</li>
+          </ul>
+
+          <h2>4. 查看运行状态</h2>
+          <p>提交表单后，右侧“运行进度”卡片会实时展示检索、AI 调用、BibTeX 生成等步骤的成功/失败信息，便于快速定位问题。</p>
+
+          <h2>5. 导出与复用</h2>
+          <ul>
+            <li>复制或下载 BibTeX：使用按钮复制到剪贴板或直接下载文件。</li>
+            <li>查看详情：下方“文献条目”列表会显示标题、作者、期刊、摘要以及 AI 提供的中文总结与应用建议。</li>
+            <li>数据不会外传：页面不会将你的检索式或密钥发送到除所选数据源和 AI 接口之外的任何地方。</li>
+          </ul>
+
+          <h2>6. 快捷提示</h2>
+          <ul>
+            <li>若网络受限，可自定义 OpenAI Base URL 接入兼容接口。</li>
+            <li>使用 AI 自动生成检索式时，可在“AI 模型”中选择实际可用的接口并填好密钥，以获得最贴合语法的结果。</li>
+            <li>默认字体为 Inter / Noto Sans SC，确保在中文环境下也能获得清晰的排版效果。</li>
+          </ul>
+        </div>
+      </main>
+    </div>
+  </body>
+</html>
