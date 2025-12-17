@@ -158,38 +158,32 @@ def _perform_search_stream(
             "entry": _emit("检索完成", "success", f"共获取 {len(articles)} 条候选文献"),
         }
 
+        ai_failed = False
         if ai_provider and ai_provider != "none":
             yield {"type": "status", "entry": _emit("AI 摘要", "running", "正在生成摘要...")}
-        try:
-            ai_status = apply_ai_summary(
-                articles,
-                ai_provider,
-                gemini_api_key,
-                gemini_model,
-                gemini_temperature,
-                openai_api_key,
-                openai_base_url,
-                openai_model,
-                openai_temperature,
-                ollama_api_key,
-                ollama_base_url,
-                ollama_model,
-                ollama_temperature,
-            )
-            ai_entry_status = "success" if "失败" not in ai_status else "error"
+            try:
+                ai_status = apply_ai_summary(
+                    articles,
+                    ai_provider,
+                    gemini_api_key,
+                    gemini_model,
+                    gemini_temperature,
+                    openai_api_key,
+                    openai_base_url,
+                    openai_model,
+                    openai_temperature,
+                    ollama_api_key,
+                    ollama_base_url,
+                    ollama_model,
+                    ollama_temperature,
+                )
+                ai_entry_status = "success" if "失败" not in ai_status else "error"
+            except Exception as exc:  # pylint: disable=broad-except
+                ai_status = f"AI 摘要失败：{exc}"
+                ai_entry_status = "error"
+
             yield {"type": "status", "entry": _emit("AI 摘要", ai_entry_status, ai_status)}
-            if ai_entry_status == "error":
-                yield {"type": "error", "message": ai_status, "status_log": status_log}
-                return
-        except Exception as exc:  # pylint: disable=broad-except
-            failure_detail = f"AI 摘要失败：{exc}"
-            yield {
-                "type": "status",
-                "entry": _emit("AI 摘要", "error", failure_detail),
-                "status_log": status_log,
-            }
-            yield {"type": "error", "message": failure_detail, "status_log": status_log}
-            return
+            ai_failed = ai_entry_status == "error"
 
         for info in articles:
             info.annote, _, _ = normalize_annote(info.annote)
@@ -197,6 +191,11 @@ def _perform_search_stream(
         yield {"type": "status", "entry": _emit("BibTeX 生成", "running", "正在整理文献并生成 BibTeX...")}
         bibtex_text, count = build_bibtex_entries(articles)
         yield {"type": "status", "entry": _emit("BibTeX 生成", "success", f"生成 {count} 条记录")}
+
+        if ai_failed:
+            status_log.append(
+                _status_log_entry("AI 摘要", "error", "AI 摘要失败，已返回未总结的结果")
+            )
 
         view_articles = [_build_view_article(info) for info in articles]
         yield {
@@ -473,7 +472,7 @@ def auto_workflow():
 
     for direction in directions:
         direction_status_log = [_status_log_entry("检索方向", "running", direction)]
-        query, query_message = _generate_query_terms(
+        query, query_message = generate_query_terms(
             source_name=source,
             intent=direction,
             ai_provider=query_ai_provider,

@@ -1,209 +1,88 @@
-function copyBibtex() {
-  const textarea = document.getElementById('bibtex-output');
-  const btn = document.getElementById('copy-btn');
-  if (!textarea || !textarea.value.trim()) {
-    return;
-  }
-  textarea.select();
-  textarea.setSelectionRange(0, 999999);
-  try {
-    document.execCommand('copy');
-    if (btn) {
-      const original = btn.textContent;
-      btn.textContent = '已复制';
-      setTimeout(() => {
-        btn.textContent = original;
-      }, 1600);
-    }
-  } catch (e) {
-    console.error('复制失败', e);
-  }
+let generatedQuery = '';
+let runtimeTimer = null;
+let runtimeStart = null;
+
+function $(selector) {
+  return document.querySelector(selector);
 }
 
 function showError(message) {
-  const errorBox = document.getElementById('error-box');
-  if (!errorBox) return;
+  const box = $('#error-box');
+  if (!box) return;
   if (message) {
-    errorBox.textContent = message;
-    errorBox.style.display = 'block';
+    box.textContent = message;
+    box.style.display = 'block';
   } else {
-    errorBox.textContent = '';
-    errorBox.style.display = 'none';
+    box.textContent = '';
+    box.style.display = 'none';
+  }
+}
+
+function copyBibtex() {
+  const output = $('#bibtex-output');
+  const btn = $('#copy-btn');
+  if (!output || !output.value.trim()) return;
+  const text = output.value;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => {
+      if (btn) {
+        const original = btn.textContent;
+        btn.textContent = '已复制';
+        setTimeout(() => (btn.textContent = original), 1500);
+      }
+    });
+  } else {
+    output.select();
+    document.execCommand('copy');
   }
 }
 
 function applySourceDefaults() {
-  const sourceSelect = document.getElementById('source');
-  if (!sourceSelect) return;
-  const source = sourceSelect.value;
-  const defaults = (window.sourceDefaults && window.sourceDefaults[source]) || {};
-  const yearsInput = document.getElementById('years');
-  const maxResultsInput = document.getElementById('max_results');
-  const emailInput = document.getElementById('email');
-  const apiKeyInput = document.getElementById('api_key');
-  const outputInput = document.getElementById('output');
-
-  if (yearsInput) {
-    yearsInput.placeholder = defaults.years ? `默认 ${defaults.years}` : '';
-  }
-  if (maxResultsInput) {
-    maxResultsInput.placeholder = defaults.max_results ? `默认 ${defaults.max_results}` : '';
-  }
-  if (emailInput) {
-    emailInput.placeholder = defaults.email ? `默认 ${defaults.email}` : '用于 NCBI E-utilities 合规使用';
-  }
-  if (apiKeyInput) {
-    apiKeyInput.placeholder = defaults.api_key ? `默认 ${defaults.api_key}` : '可选：例如 PubMed 的 NCBI API Key';
-  }
-  if (outputInput) {
-    outputInput.placeholder = defaults.output ? `默认 ${defaults.output}` : '';
-  }
+  const select = $('#source');
+  if (!select) return;
+  const defaults = (window.sourceDefaults && window.sourceDefaults[select.value]) || {};
+  const years = $('#years');
+  const max = $('#max_results');
+  const email = $('#email');
+  const apiKey = $('#api_key');
+  const output = $('#output');
+  if (years) years.placeholder = defaults.years ? `默认 ${defaults.years}` : '';
+  if (max) max.placeholder = defaults.max_results ? `默认 ${defaults.max_results}` : '';
+  if (email) email.placeholder = defaults.email ? `默认 ${defaults.email}` : '用于 NCBI 合规';
+  if (apiKey) apiKey.placeholder = defaults.api_key ? `默认 ${defaults.api_key}` : '可选 API Key';
+  if (output) output.placeholder = defaults.output ? `默认 ${defaults.output}` : '默认使用数据源建议';
 }
 
-function syncAiConfigState() {
-  const providerSelect = document.getElementById('ai_provider');
-  const value = providerSelect ? providerSelect.value : '';
-  const isGemini = value === 'gemini';
-  const isOpenAI = value === 'openai';
-  const isOllama = value === 'ollama';
-  const geminiBlock = document.getElementById('gemini-config');
-  const openaiBlock = document.getElementById('openai-config');
-  const ollamaBlock = document.getElementById('ollama-config');
-  const hint = document.getElementById('ai-config-hint');
-
-  const geminiFields = [
-    document.getElementById('gemini_api_key'),
-    document.getElementById('gemini_model'),
-    document.getElementById('gemini_temperature'),
-  ];
-  const openaiFields = [
-    document.getElementById('openai_api_key'),
-    document.getElementById('openai_base_url'),
-    document.getElementById('openai_model'),
-    document.getElementById('openai_temperature'),
-  ];
-  const ollamaFields = [
-    document.getElementById('ollama_api_key'),
-    document.getElementById('ollama_base_url'),
-    document.getElementById('ollama_model'),
-    document.getElementById('ollama_temperature'),
-  ];
-
-  geminiFields.forEach((el) => {
-    if (!el) return;
-    el.disabled = !isGemini;
-    el.style.opacity = isGemini ? '1' : '0.5';
+function syncProviderPanels() {
+  const value = $('#ai_provider')?.value || '';
+  document.querySelectorAll('.provider-panel').forEach((panel) => {
+    panel.classList.toggle('active', panel.dataset.provider === value);
   });
-  openaiFields.forEach((el) => {
-    if (!el) return;
-    el.disabled = !isOpenAI;
-    el.style.opacity = isOpenAI ? '1' : '0.5';
-  });
-  ollamaFields.forEach((el) => {
-    if (!el) return;
-    el.disabled = !isOllama;
-    el.style.opacity = isOllama ? '1' : '0.5';
-  });
-
-  if (geminiBlock) {
-    geminiBlock.style.display = isGemini ? 'flex' : 'none';
-  }
-  if (openaiBlock) {
-    openaiBlock.style.display = isOpenAI ? 'flex' : 'none';
-  }
-  if (ollamaBlock) {
-    ollamaBlock.style.display = isOllama ? 'flex' : 'none';
-  }
-
-  if (hint) {
-    if (value === 'gemini') {
-      hint.textContent = '当前使用 Gemini：可选填写下方参数，留空则使用系统环境变量 GEMINI_API_KEY 与默认模型 gemini-2.5-flash。';
-    } else if (value === 'none') {
-      hint.textContent = '当前未启用 AI 总结：仅执行检索与 BibTeX 生成。';
-    } else if (value === 'openai') {
-      hint.textContent = '当前使用 OpenAI 实时调用：可填写 Base URL/模型名称以兼容自托管接口。';
-    } else if (value === 'ollama') {
-      hint.textContent = '当前使用本地 Ollama：请确保已启动 Ollama 服务，Base URL 留空则默认 http://localhost:11434/v1。';
-    } else {
-      hint.textContent = '当前 AI 模型暂不需要额外配置。';
-    }
-  }
+  const hint = $('#ai-config-hint');
+  if (!hint) return;
+  const hints = {
+    gemini: '当前使用 Gemini：可选填写下方参数，留空则使用 GEMINI_API_KEY 与默认模型。',
+    openai: '当前使用 OpenAI/兼容接口：可填写 Base URL 和模型名。',
+    ollama: '当前使用本地 Ollama：确保已启动服务，默认 http://localhost:11434/v1。',
+    none: '未启用 AI 总结：仅执行检索与 BibTeX 生成。',
+  };
+  hint.textContent = hints[value] || '选择 AI 模型后可填写对应参数。';
 }
 
-function wireHiddenBibtex() {
-  const output = document.getElementById('bibtex-output');
-  const hidden = document.getElementById('bibtex-hidden');
-  if (output && hidden) {
-    hidden.value = output.value;
-  }
+function toggleContactFields() {
+  const toggle = $('#toggle-contact');
+  const block = $('#contact-fields');
+  if (!toggle || !block) return;
+  const visible = toggle.checked;
+  block.style.display = visible ? 'grid' : 'none';
 }
 
-function createStatusItem(entry) {
-  const li = document.createElement('li');
-  li.className = 'status-item';
-  const icon = document.createElement('span');
-  icon.className = `status-icon ${entry.status || 'pending'}`;
-  if (entry.status === 'success') icon.textContent = '✓';
-  else if (entry.status === 'error') icon.textContent = '!';
-  else if (entry.status === 'running') icon.textContent = '…';
-  else icon.textContent = '…';
-  const text = document.createElement('div');
-  text.className = 'status-text';
-  const strong = document.createElement('strong');
-  strong.textContent = entry.step || '';
-  const span = document.createElement('span');
-  span.textContent = entry.detail || '';
-  text.appendChild(strong);
-  text.appendChild(span);
-  li.appendChild(icon);
-  li.appendChild(text);
-  return li;
+function setRuntime(text, tone = 'idle') {
+  const runtime = $('#runtime');
+  const state = $('#runtime-state');
+  if (runtime) runtime.dataset.tone = tone;
+  if (state) state.textContent = text;
 }
-
-function resetStatusList() {
-  const list = document.getElementById('status-list');
-  if (!list) return;
-  list.innerHTML = '';
-  const placeholder = document.createElement('li');
-  placeholder.className = 'status-item';
-  placeholder.id = 'status-placeholder';
-  const icon = document.createElement('span');
-  icon.className = 'status-icon pending';
-  icon.textContent = '…';
-  const text = document.createElement('div');
-  text.className = 'status-text';
-  const strong = document.createElement('strong');
-  strong.textContent = '等待开始';
-  const span = document.createElement('span');
-  span.textContent = '提交后实时显示进度。';
-  text.appendChild(strong);
-  text.appendChild(span);
-  placeholder.appendChild(icon);
-  placeholder.appendChild(text);
-  list.appendChild(placeholder);
-}
-
-function appendStatus(entry) {
-  const list = document.getElementById('status-list');
-  if (!list) return;
-  if (list.children.length && list.children[0].id === 'status-placeholder') {
-    list.innerHTML = '';
-  }
-  list.appendChild(createStatusItem(entry));
-}
-
-function renderInitialStatus() {
-  const initial = window.initialStatusLog || [];
-  const list = document.getElementById('status-list');
-  if (!list) return;
-  if (!initial.length) return;
-  list.innerHTML = '';
-  initial.forEach((item) => list.appendChild(createStatusItem(item)));
-}
-
-let generatedQuery = '';
-let runtimeTimer = null;
-let runtimeStart = null;
 
 function formatElapsed(seconds) {
   const mm = String(Math.floor(seconds / 60)).padStart(2, '0');
@@ -211,155 +90,123 @@ function formatElapsed(seconds) {
   return `${mm}:${ss}`;
 }
 
-function setRuntimeState(text, tone) {
-  const wrap = document.getElementById('runtime');
-  const stateEl = document.getElementById('runtime-state');
-  if (wrap) {
-    wrap.setAttribute('data-tone', tone || 'idle');
-  }
-  if (stateEl) {
-    stateEl.textContent = text;
-  }
-}
-
-function updateRuntimeElapsed() {
-  const elapsedEl = document.getElementById('runtime-elapsed');
-  if (!elapsedEl || !runtimeStart) return;
-  const seconds = Math.max(0, Math.floor((Date.now() - runtimeStart) / 1000));
-  elapsedEl.textContent = formatElapsed(seconds);
-}
-
-function startRuntime() {
+function startTimer() {
   runtimeStart = Date.now();
-  updateRuntimeElapsed();
-  setRuntimeState('运行中...', 'running');
+  const elapsedEl = $('#runtime-elapsed');
+  const tick = () => {
+    if (!runtimeStart || !elapsedEl) return;
+    const seconds = Math.max(0, Math.floor((Date.now() - runtimeStart) / 1000));
+    elapsedEl.textContent = formatElapsed(seconds);
+  };
+  tick();
   if (runtimeTimer) clearInterval(runtimeTimer);
-  runtimeTimer = setInterval(updateRuntimeElapsed, 1000);
+  runtimeTimer = setInterval(tick, 1000);
+  setRuntime('运行中...', 'running');
 }
 
-function stopRuntime(success = true, message = '') {
-  if (runtimeTimer) {
-    clearInterval(runtimeTimer);
-    runtimeTimer = null;
-  }
-  updateRuntimeElapsed();
-  if (runtimeStart) {
-    const elapsedSeconds = Math.max(0, Math.floor((Date.now() - runtimeStart) / 1000));
-    const prefix = success ? '已完成' : '运行失败';
-    setRuntimeState(`${prefix}${message ? `：${message}` : ''} · ${formatElapsed(elapsedSeconds)}`, success ? 'success' : 'error');
-  } else {
-    setRuntimeState(success ? '已完成' : '运行失败', success ? 'success' : 'error');
+function stopTimer(success = true, message = '') {
+  if (runtimeTimer) clearInterval(runtimeTimer);
+  runtimeTimer = null;
+  const elapsedEl = $('#runtime-elapsed');
+  if (runtimeStart && elapsedEl) {
+    const seconds = Math.max(0, Math.floor((Date.now() - runtimeStart) / 1000));
+    elapsedEl.textContent = formatElapsed(seconds);
   }
   runtimeStart = null;
+  const prefix = success ? '已完成' : '运行失败';
+  setRuntime(`${prefix}${message ? `：${message}` : ''}`, success ? 'success' : 'error');
 }
 
-async function generateQuery() {
-  const intentInput = document.getElementById('intent');
-  const messageBox = document.getElementById('generator-message');
-  const previewBox = document.getElementById('generator-preview');
-  const actions = document.getElementById('generator-preview-actions');
-  const button = document.getElementById('btn-generate-query');
-  if (!intentInput || !intentInput.value.trim()) {
-    if (messageBox) messageBox.textContent = '请先输入你要检索的自然语言需求。';
-    return;
-  }
-  if (button) {
-    button.disabled = true;
-    button.textContent = '生成中...';
-  }
-  try {
-    const body = {
-      source: document.getElementById('source')?.value || '',
-      intent: intentInput.value,
-      ai_provider: document.getElementById('ai_provider')?.value || '',
-      gemini_api_key: document.getElementById('gemini_api_key')?.value || '',
-      gemini_model: document.getElementById('gemini_model')?.value || '',
-      gemini_temperature: document.getElementById('gemini_temperature')?.value || '',
-      openai_api_key: document.getElementById('openai_api_key')?.value || '',
-      openai_base_url: document.getElementById('openai_base_url')?.value || '',
-      openai_model: document.getElementById('openai_model')?.value || '',
-      openai_temperature: document.getElementById('openai_temperature')?.value || '',
-      ollama_api_key: document.getElementById('ollama_api_key')?.value || '',
-      ollama_base_url: document.getElementById('ollama_base_url')?.value || '',
-      ollama_model: document.getElementById('ollama_model')?.value || '',
-      ollama_temperature: document.getElementById('ollama_temperature')?.value || '',
-    };
-
-    const resp = await fetch('/api/generate_query', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    const data = await resp.json();
-    generatedQuery = data.query || '';
-    if (messageBox) messageBox.textContent = data.message || '已生成预览。';
-    if (previewBox) {
-      previewBox.textContent = generatedQuery || '未生成检索式，请检查配置。';
-      previewBox.style.display = generatedQuery ? 'block' : 'none';
-    }
-    if (actions) {
-      actions.style.display = generatedQuery ? 'flex' : 'none';
-    }
-  } catch (err) {
-    if (messageBox) {
-      messageBox.textContent = '生成失败，请稍后重试或检查网络配置。';
-    }
-    console.error(err);
-  } finally {
-    if (button) {
-      button.disabled = false;
-      button.textContent = 'AI 生成检索式';
-    }
-  }
+function createStatus(entry) {
+  const li = document.createElement('li');
+  li.className = 'status-item';
+  const icon = document.createElement('span');
+  const status = entry.status || 'pending';
+  icon.className = `status-icon ${status}`;
+  icon.textContent = status === 'success' ? '✓' : status === 'error' ? '!' : '…';
+  const textBox = document.createElement('div');
+  const strong = document.createElement('strong');
+  strong.textContent = entry.step || '';
+  const detail = document.createElement('p');
+  detail.className = 'muted';
+  detail.textContent = entry.detail || '';
+  textBox.appendChild(strong);
+  textBox.appendChild(detail);
+  li.appendChild(icon);
+  li.appendChild(textBox);
+  return li;
 }
 
-function applyGeneratedQuery() {
-  if (!generatedQuery) return;
-  const queryInput = document.getElementById('query');
-  if (queryInput) {
-    queryInput.value = generatedQuery;
-    queryInput.focus();
-  }
+function resetStatusList(initial = false) {
+  const list = $('#status-list');
+  if (!list) return;
+  list.innerHTML = '';
+  if (initial) return;
+  const li = document.createElement('li');
+  li.className = 'status-item';
+  li.id = 'status-placeholder';
+  li.innerHTML = `<span class="status-icon pending">…</span><div><strong>等待开始</strong><p class="muted">提交后实时显示检索、AI 与导出进度。</p></div>`;
+  list.appendChild(li);
+}
+
+function appendStatus(entry) {
+  const list = $('#status-list');
+  if (!list) return;
+  if (list.children.length && list.children[0].id === 'status-placeholder') list.innerHTML = '';
+  list.appendChild(createStatus(entry));
+}
+
+function renderInitialStatus() {
+  const initial = window.initialStatusLog || [];
+  if (!initial.length) return;
+  resetStatusList(true);
+  initial.forEach((entry) => appendStatus(entry));
+}
+
+function updateBibtex(bibtexText, count) {
+  const output = $('#bibtex-output');
+  const hidden = $('#bibtex-hidden');
+  const countEl = $('#result-count');
+  const copyBtn = $('#copy-btn');
+  const exportBtn = document.querySelector('.export-btn');
+  if (output) output.value = bibtexText || '';
+  if (hidden) hidden.value = bibtexText || '';
+  if (countEl) countEl.textContent = `共 ${count || 0} 条记录`;
+  const disabled = !bibtexText;
+  if (copyBtn) copyBtn.disabled = disabled;
+  if (exportBtn) exportBtn.disabled = disabled;
 }
 
 function renderArticles(articles) {
-  const container = document.getElementById('article-container');
+  const container = $('#article-container');
   if (!container) return;
   if (!articles || !articles.length) {
-    container.innerHTML = '<div class="hint">提交后将在此展示检索到的文献列表与 AI 总结。</div>';
+    container.innerHTML = '<div class="muted">提交后将在此展示检索到的文献列表与 AI 总结。</div>';
     return;
   }
-  const fragments = articles.map((article) => {
-    const title = article.url
-      ? `<a href="${article.url}" target="_blank" rel="noreferrer">${article.title}</a>`
-      : article.title;
-    const pmid = article.pmid ? `<span class="badge">PMID: ${article.pmid}</span>` : '';
-    const direction = article.direction ? `<span class="badge badge-muted">${article.direction}</span>` : '';
-    const abstractBlock = article.abstract
-      ? `<div class="article-abstract"><span class="article-label">摘要：</span>${article.abstract}</div>`
-      : '';
-    const summaryBlock = article.summary_zh
-      ? `<div class="article-summary"><span class="article-summary-label">AI 总结</span>${article.summary_zh}</div>`
-      : '';
-    const usageBlock = article.usage_zh
-      ? `<div class="article-summary article-usage"><span class="article-summary-label">应用建议</span>${article.usage_zh}</div>`
-      : '';
+  const fragments = articles.map((a) => {
+    const title = a.url ? `<a href="${a.url}" target="_blank" rel="noreferrer">${a.title}</a>` : a.title;
+    const pmid = a.pmid ? `<span class="badge">PMID: ${a.pmid}</span>` : '';
+    const direction = a.direction ? `<span class="badge muted">${a.direction}</span>` : '';
+    const abstractBlock = a.abstract ? `<p class="paper-abstract"><span class="label">摘要</span>${a.abstract}</p>` : '';
+    const summaryBlock = a.summary_zh ? `<p class="paper-summary"><span class="label">AI 总结</span>${a.summary_zh}</p>` : '';
+    const usageBlock = a.usage_zh ? `<p class="paper-summary"><span class="label">应用建议</span>${a.usage_zh}</p>` : '';
     return `
-      <div class="article">
-        <div class="article-title">${title}</div>
-        <div class="article-meta">${article.authors} · ${article.journal} · ${article.year} ${pmid} ${direction}</div>
-        ${abstractBlock}
-        ${summaryBlock}
-        ${usageBlock}
-      </div>
+      <article class="paper">
+        <header class="paper-head">
+          <h3>${title}</h3>
+          <div class="meta">${a.authors} · ${a.journal} · ${a.year} ${pmid} ${direction}</div>
+        </header>
+        ${abstractBlock}${summaryBlock}${usageBlock}
+      </article>
     `;
   });
   container.innerHTML = fragments.join('');
 }
 
-function renderDirectionList(directions) {
-  const list = document.getElementById('direction-list');
-  const message = document.getElementById('direction-message');
+function renderDirections(directions) {
+  const list = $('#direction-list');
+  const message = $('#direction-message');
   if (!list || !message) return;
   if (!directions || !directions.length) {
     message.textContent = '等待输入以自动拆解检索方向。';
@@ -374,48 +221,19 @@ function renderDirectionList(directions) {
         : item.message
           ? `<div class="direction-status">${item.message}</div>`
           : '';
-      const queryBlock = item.query
-        ? `<div class="direction-query"><span>检索式：</span><code>${item.query}</code></div>`
-        : '';
+      const queryBlock = item.query ? `<div class="direction-query"><span>检索式：</span><code>${item.query}</code></div>` : '';
       return `<li><div class="direction-title">${item.direction || '未命名方向'}</div>${status}${queryBlock}</li>`;
     })
     .join('');
 }
 
-function updateBibtexResult(bibtexText, count) {
-  const bibtexOutput = document.getElementById('bibtex-output');
-  const resultCount = document.getElementById('result-count');
-  const copyBtn = document.getElementById('copy-btn');
-  const exportBtn = document.querySelector('.export-btn');
-  const hidden = document.getElementById('bibtex-hidden');
-
-  if (bibtexOutput) {
-    bibtexOutput.value = bibtexText || '';
-  }
-  if (hidden) {
-    hidden.value = bibtexText || '';
-  }
-  if (resultCount) {
-    resultCount.textContent = `共 ${count || 0} 条记录`;
-  }
-  if (copyBtn) {
-    copyBtn.disabled = !bibtexText;
-  }
-  if (exportBtn) {
-    exportBtn.disabled = !bibtexText;
-  }
-}
-
-function parseSseChunk(chunk) {
+function parseSse(chunk) {
   const lines = chunk.split('\n');
   let eventType = 'message';
   let dataLine = '';
   lines.forEach((line) => {
-    if (line.startsWith('event:')) {
-      eventType = line.replace('event:', '').trim();
-    } else if (line.startsWith('data:')) {
-      dataLine += line.replace('data:', '').trim();
-    }
+    if (line.startsWith('event:')) eventType = line.replace('event:', '').trim();
+    else if (line.startsWith('data:')) dataLine += line.replace('data:', '').trim();
   });
   let payload = {};
   try {
@@ -426,40 +244,24 @@ function parseSseChunk(chunk) {
   return { eventType, payload };
 }
 
-function renderStatusLog(logItems) {
-  if (!Array.isArray(logItems)) return;
-  resetStatusList();
-  logItems.forEach((entry) => appendStatus(entry));
-}
-
 async function streamSearch(event) {
   if (event) event.preventDefault();
-
-  const form = document.getElementById('search-form');
-  const submitBtn = document.getElementById('submit-btn');
+  const form = $('#search-form');
+  const submit = $('#submit-btn');
   if (!form) return;
-
   resetStatusList();
   showError('');
-  updateBibtexResult('', 0);
+  updateBibtex('', 0);
   renderArticles([]);
-  startRuntime();
-
-  if (submitBtn) {
-    submitBtn.disabled = true;
-    submitBtn.textContent = '运行中...';
+  startTimer();
+  if (submit) {
+    submit.disabled = true;
+    submit.textContent = '运行中...';
   }
-
   const formData = new FormData(form);
-
   try {
-    const resp = await fetch('/api/search_stream', {
-      method: 'POST',
-      body: formData,
-    });
-    if (!resp.ok || !resp.body) {
-      throw new Error('接口返回异常');
-    }
+    const resp = await fetch('/api/search_stream', { method: 'POST', body: formData });
+    if (!resp.ok || !resp.body) throw new Error('接口返回异常');
     const reader = resp.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
@@ -470,98 +272,149 @@ async function streamSearch(event) {
       const parts = buffer.split('\n\n');
       buffer = parts.pop() || '';
       parts.filter(Boolean).forEach((part) => {
-        const { eventType, payload } = parseSseChunk(part);
-        if (eventType === 'status' && payload.entry) {
-          appendStatus(payload.entry);
-          if (payload.entry.status === 'error') {
-            stopRuntime(false, payload.entry.detail || '');
-          }
-        }
-        if (eventType === 'result') {
-          updateBibtexResult(payload.bibtex_text, payload.count);
-          renderArticles(payload.articles || []);
-          stopRuntime(true, '');
-        }
+        const { eventType, payload } = parseSse(part);
+        if (eventType === 'status' && payload.entry) appendStatus(payload.entry);
         if (eventType === 'error' && payload.message) {
           showError(payload.message);
-          stopRuntime(false, payload.message);
+          stopTimer(false, payload.message);
+        }
+        if (eventType === 'result') {
+          updateBibtex(payload.bibtex_text, payload.count);
+          renderArticles(payload.articles || []);
+          stopTimer(true);
         }
       });
     }
     if (buffer.trim()) {
-      const { eventType, payload } = parseSseChunk(buffer.trim());
+      const { eventType, payload } = parseSse(buffer.trim());
       if (eventType === 'status' && payload.entry) appendStatus(payload.entry);
       if (eventType === 'error' && payload.message) {
         showError(payload.message);
-        stopRuntime(false, payload.message);
+        stopTimer(false, payload.message);
       }
       if (eventType === 'result') {
-        updateBibtexResult(payload.bibtex_text, payload.count);
+        updateBibtex(payload.bibtex_text, payload.count);
         renderArticles(payload.articles || []);
-        stopRuntime(true, '');
+        stopTimer(true);
       }
     }
   } catch (err) {
     console.error(err);
     showError('检索失败，请检查配置或网络。');
-    stopRuntime(false, '接口异常或网络问题');
+    stopTimer(false, '接口异常或网络问题');
   } finally {
-    if (runtimeStart) {
-      stopRuntime(true, '');
+    if (submit) {
+      submit.disabled = false;
+      submit.textContent = '检索并生成 BibTeX';
     }
-    if (submitBtn) {
-      submitBtn.disabled = false;
-      submitBtn.textContent = '检索并生成 BibTeX';
+    if (runtimeStart) stopTimer(true);
+  }
+}
+
+async function generateQuery() {
+  const intent = $('#intent');
+  const message = $('#generator-message');
+  const preview = $('#generator-preview');
+  const applyActions = $('#generator-actions');
+  const button = $('#btn-generate-query');
+  if (!intent || !intent.value.trim()) {
+    if (message) message.textContent = '请先输入你要检索的自然语言需求。';
+    return;
+  }
+  if (button) {
+    button.disabled = true;
+    button.textContent = '生成中...';
+  }
+  try {
+    const body = {
+      source: $('#source')?.value || '',
+      intent: intent.value,
+      ai_provider: $('#ai_provider')?.value || '',
+      gemini_api_key: $('#gemini_api_key')?.value || '',
+      gemini_model: $('#gemini_model')?.value || '',
+      gemini_temperature: $('#gemini_temperature')?.value || '',
+      openai_api_key: $('#openai_api_key')?.value || '',
+      openai_base_url: $('#openai_base_url')?.value || '',
+      openai_model: $('#openai_model')?.value || '',
+      openai_temperature: $('#openai_temperature')?.value || '',
+      ollama_api_key: $('#ollama_api_key')?.value || '',
+      ollama_base_url: $('#ollama_base_url')?.value || '',
+      ollama_model: $('#ollama_model')?.value || '',
+      ollama_temperature: $('#ollama_temperature')?.value || '',
+    };
+    const resp = await fetch('/api/generate_query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await resp.json();
+    generatedQuery = data.query || '';
+    if (preview) {
+      preview.textContent = generatedQuery || '未生成检索式，请检查配置。';
     }
+    if (applyActions) applyActions.style.opacity = generatedQuery ? '1' : '0.5';
+    if (message) message.textContent = data.message || '已生成预览。';
+  } catch (err) {
+    console.error(err);
+    if (message) message.textContent = '生成失败，请稍后重试或检查网络配置。';
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = 'AI 生成检索式';
+    }
+  }
+}
+
+function applyGeneratedQuery() {
+  if (!generatedQuery) return;
+  const query = $('#query');
+  if (query) {
+    query.value = generatedQuery;
+    query.focus();
   }
 }
 
 async function runAutoWorkflow(event) {
   if (event) event.preventDefault();
-  const contentInput = document.getElementById('direction-text');
-  const runButton = document.getElementById('btn-auto-workflow');
+  const contentInput = $('#direction-text');
+  const button = $('#btn-auto-workflow');
   if (!contentInput || !contentInput.value.trim()) {
-    const message = document.getElementById('direction-message');
-    if (message) message.textContent = '请先粘贴要分析的文章或说明文字。';
+    showError('请先提供需要拆解的文本。');
     return;
   }
-
   showError('');
-  renderDirectionList([]);
+  renderDirections([]);
   renderArticles([]);
-  updateBibtexResult('', 0);
+  updateBibtex('', 0);
   resetStatusList();
-  startRuntime();
-
-  if (runButton) {
-    runButton.disabled = true;
-    runButton.textContent = '运行中...';
+  startTimer();
+  if (button) {
+    button.disabled = true;
+    button.textContent = '运行中...';
   }
-
   const body = {
     content: contentInput.value,
-    source: document.getElementById('source')?.value || '',
-    years: document.getElementById('years')?.value || '',
+    source: $('#source')?.value || '',
+    years: $('#years')?.value || '',
     max_results_per_direction: 3,
-    direction_ai_provider: document.getElementById('ai_provider')?.value || '',
-    query_ai_provider: document.getElementById('ai_provider')?.value || '',
-    summary_ai_provider: document.getElementById('ai_provider')?.value || '',
-    gemini_api_key: document.getElementById('gemini_api_key')?.value || '',
-    gemini_model: document.getElementById('gemini_model')?.value || '',
-    gemini_temperature: document.getElementById('gemini_temperature')?.value || '',
-    openai_api_key: document.getElementById('openai_api_key')?.value || '',
-    openai_base_url: document.getElementById('openai_base_url')?.value || '',
-    openai_model: document.getElementById('openai_model')?.value || '',
-    openai_temperature: document.getElementById('openai_temperature')?.value || '',
-    ollama_api_key: document.getElementById('ollama_api_key')?.value || '',
-    ollama_base_url: document.getElementById('ollama_base_url')?.value || '',
-    ollama_model: document.getElementById('ollama_model')?.value || '',
-    ollama_temperature: document.getElementById('ollama_temperature')?.value || '',
-    email: document.getElementById('email')?.value || '',
-    api_key: document.getElementById('api_key')?.value || '',
-    output: document.getElementById('output')?.value || '',
+    direction_ai_provider: $('#ai_provider')?.value || '',
+    query_ai_provider: $('#ai_provider')?.value || '',
+    summary_ai_provider: $('#ai_provider')?.value || '',
+    gemini_api_key: $('#gemini_api_key')?.value || '',
+    gemini_model: $('#gemini_model')?.value || '',
+    gemini_temperature: $('#gemini_temperature')?.value || '',
+    openai_api_key: $('#openai_api_key')?.value || '',
+    openai_base_url: $('#openai_base_url')?.value || '',
+    openai_model: $('#openai_model')?.value || '',
+    openai_temperature: $('#openai_temperature')?.value || '',
+    ollama_api_key: $('#ollama_api_key')?.value || '',
+    ollama_base_url: $('#ollama_base_url')?.value || '',
+    ollama_model: $('#ollama_model')?.value || '',
+    ollama_temperature: $('#ollama_temperature')?.value || '',
+    email: $('#email')?.value || '',
+    api_key: $('#api_key')?.value || '',
+    output: $('#output')?.value || '',
   };
-
   try {
     const resp = await fetch('/api/auto_workflow', {
       method: 'POST',
@@ -571,82 +424,54 @@ async function runAutoWorkflow(event) {
     const data = await resp.json();
     if (!resp.ok) {
       showError(data.error || '自动工作流失败，请检查配置。');
-      if (data.status_log) renderStatusLog(data.status_log);
-      stopRuntime(false, data.error || '自动工作流失败');
+      if (data.status_log) {
+        resetStatusList(true);
+        data.status_log.forEach((entry) => appendStatus(entry));
+      }
+      stopTimer(false, data.error || '自动工作流失败');
       return;
     }
-    renderDirectionList(data.directions || []);
-    if (data.status_log) renderStatusLog(data.status_log);
-    updateBibtexResult(data.bibtex_text || '', data.count || 0);
+    renderDirections(data.directions || []);
+    if (data.status_log) {
+      resetStatusList(true);
+      data.status_log.forEach((entry) => appendStatus(entry));
+    }
+    updateBibtex(data.bibtex_text || '', data.count || 0);
     renderArticles(data.articles || []);
-    stopRuntime(true, '');
+    stopTimer(true);
   } catch (err) {
     console.error(err);
     showError('自动工作流失败，请检查网络或 AI 配置。');
-    stopRuntime(false, '接口异常');
+    stopTimer(false, '接口异常');
   } finally {
-    if (runButton) {
-      runButton.disabled = false;
-      runButton.textContent = '一键拆解并检索';
+    if (button) {
+      button.disabled = false;
+      button.textContent = '一键拆解并检索';
     }
   }
 }
 
 function wireEvents() {
-  const sourceSelect = document.getElementById('source');
-  if (sourceSelect) {
-    sourceSelect.addEventListener('change', applySourceDefaults);
-  }
-  const aiSelect = document.getElementById('ai_provider');
-  if (aiSelect) {
-    aiSelect.addEventListener('change', syncAiConfigState);
-  }
-  const generatorButton = document.getElementById('btn-generate-query');
-  if (generatorButton) {
-    generatorButton.addEventListener('click', (e) => {
-      e.preventDefault();
-      generateQuery();
-    });
-  }
-
-  const workflowButton = document.getElementById('btn-auto-workflow');
-  if (workflowButton) {
-    workflowButton.addEventListener('click', (e) => {
-      e.preventDefault();
-      runAutoWorkflow();
-    });
-  }
-
-  const applyButton = document.getElementById('btn-apply-query');
-  if (applyButton) {
-    applyButton.addEventListener('click', applyGeneratedQuery);
-  }
-
-  const form = document.getElementById('search-form');
+  $('#ai_provider')?.addEventListener('change', syncProviderPanels);
+  $('#source')?.addEventListener('change', applySourceDefaults);
+  $('#toggle-contact')?.addEventListener('change', toggleContactFields);
+  $('#btn-generate-query')?.addEventListener('click', generateQuery);
+  $('#btn-apply-query')?.addEventListener('click', applyGeneratedQuery);
+  $('#btn-auto-workflow')?.addEventListener('click', runAutoWorkflow);
+  $('#copy-btn')?.addEventListener('click', copyBibtex);
+  const form = $('#search-form');
   if (form) {
     form.addEventListener('submit', (e) => {
-      if (e.submitter && e.submitter.classList.contains('export-btn')) {
-        return;
-      }
+      if (e.submitter && e.submitter.classList.contains('export-btn')) return;
       streamSearch(e);
-    });
-  }
-
-  const contactToggle = document.getElementById('toggle-contact');
-  const contactBlock = document.getElementById('contact-advanced');
-  if (contactToggle && contactBlock) {
-    contactToggle.addEventListener('click', () => {
-      const visible = contactBlock.style.display === 'block';
-      contactBlock.style.display = visible ? 'none' : 'block';
-      contactToggle.textContent = visible ? '显示 PubMed 邮箱/API' : '隐藏 PubMed 邮箱/API';
     });
   }
 }
 
 window.addEventListener('DOMContentLoaded', () => {
   applySourceDefaults();
-  syncAiConfigState();
-  wireHiddenBibtex();
+  syncProviderPanels();
+  toggleContactFields();
   renderInitialStatus();
   wireEvents();
 });
