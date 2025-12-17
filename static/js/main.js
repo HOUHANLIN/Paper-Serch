@@ -334,6 +334,7 @@ function renderArticles(articles) {
       ? `<a href="${article.url}" target="_blank" rel="noreferrer">${article.title}</a>`
       : article.title;
     const pmid = article.pmid ? `<span class="badge">PMID: ${article.pmid}</span>` : '';
+    const direction = article.direction ? `<span class="badge badge-muted">${article.direction}</span>` : '';
     const abstractBlock = article.abstract
       ? `<div class="article-abstract"><span class="article-label">摘要：</span>${article.abstract}</div>`
       : '';
@@ -346,7 +347,7 @@ function renderArticles(articles) {
     return `
       <div class="article">
         <div class="article-title">${title}</div>
-        <div class="article-meta">${article.authors} · ${article.journal} · ${article.year} ${pmid}</div>
+        <div class="article-meta">${article.authors} · ${article.journal} · ${article.year} ${pmid} ${direction}</div>
         ${abstractBlock}
         ${summaryBlock}
         ${usageBlock}
@@ -354,6 +355,31 @@ function renderArticles(articles) {
     `;
   });
   container.innerHTML = fragments.join('');
+}
+
+function renderDirectionList(directions) {
+  const list = document.getElementById('direction-list');
+  const message = document.getElementById('direction-message');
+  if (!list || !message) return;
+  if (!directions || !directions.length) {
+    message.textContent = '等待输入以自动拆解检索方向。';
+    list.innerHTML = '';
+    return;
+  }
+  message.textContent = '已提取到以下检索方向：';
+  list.innerHTML = directions
+    .map((item) => {
+      const status = item.error
+        ? `<div class="direction-status error">${item.error}</div>`
+        : item.message
+          ? `<div class="direction-status">${item.message}</div>`
+          : '';
+      const queryBlock = item.query
+        ? `<div class="direction-query"><span>检索式：</span><code>${item.query}</code></div>`
+        : '';
+      return `<li><div class="direction-title">${item.direction || '未命名方向'}</div>${status}${queryBlock}</li>`;
+    })
+    .join('');
 }
 
 function updateBibtexResult(bibtexText, count) {
@@ -398,6 +424,12 @@ function parseSseChunk(chunk) {
     console.error('解析事件失败', err, chunk);
   }
   return { eventType, payload };
+}
+
+function renderStatusLog(logItems) {
+  if (!Array.isArray(logItems)) return;
+  resetStatusList();
+  logItems.forEach((entry) => appendStatus(entry));
 }
 
 async function streamSearch(event) {
@@ -484,6 +516,82 @@ async function streamSearch(event) {
   }
 }
 
+async function runAutoWorkflow(event) {
+  if (event) event.preventDefault();
+  const contentInput = document.getElementById('direction-text');
+  const runButton = document.getElementById('btn-auto-workflow');
+  if (!contentInput || !contentInput.value.trim()) {
+    const message = document.getElementById('direction-message');
+    if (message) message.textContent = '请先粘贴要分析的文章或说明文字。';
+    return;
+  }
+
+  showError('');
+  renderDirectionList([]);
+  renderArticles([]);
+  updateBibtexResult('', 0);
+  resetStatusList();
+  startRuntime();
+
+  if (runButton) {
+    runButton.disabled = true;
+    runButton.textContent = '运行中...';
+  }
+
+  const body = {
+    content: contentInput.value,
+    source: document.getElementById('source')?.value || '',
+    years: document.getElementById('years')?.value || '',
+    max_results_per_direction: 3,
+    direction_ai_provider: document.getElementById('ai_provider')?.value || '',
+    query_ai_provider: document.getElementById('ai_provider')?.value || '',
+    summary_ai_provider: document.getElementById('ai_provider')?.value || '',
+    gemini_api_key: document.getElementById('gemini_api_key')?.value || '',
+    gemini_model: document.getElementById('gemini_model')?.value || '',
+    gemini_temperature: document.getElementById('gemini_temperature')?.value || '',
+    openai_api_key: document.getElementById('openai_api_key')?.value || '',
+    openai_base_url: document.getElementById('openai_base_url')?.value || '',
+    openai_model: document.getElementById('openai_model')?.value || '',
+    openai_temperature: document.getElementById('openai_temperature')?.value || '',
+    ollama_api_key: document.getElementById('ollama_api_key')?.value || '',
+    ollama_base_url: document.getElementById('ollama_base_url')?.value || '',
+    ollama_model: document.getElementById('ollama_model')?.value || '',
+    ollama_temperature: document.getElementById('ollama_temperature')?.value || '',
+    email: document.getElementById('email')?.value || '',
+    api_key: document.getElementById('api_key')?.value || '',
+    output: document.getElementById('output')?.value || '',
+  };
+
+  try {
+    const resp = await fetch('/api/auto_workflow', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      showError(data.error || '自动工作流失败，请检查配置。');
+      if (data.status_log) renderStatusLog(data.status_log);
+      stopRuntime(false, data.error || '自动工作流失败');
+      return;
+    }
+    renderDirectionList(data.directions || []);
+    if (data.status_log) renderStatusLog(data.status_log);
+    updateBibtexResult(data.bibtex_text || '', data.count || 0);
+    renderArticles(data.articles || []);
+    stopRuntime(true, '');
+  } catch (err) {
+    console.error(err);
+    showError('自动工作流失败，请检查网络或 AI 配置。');
+    stopRuntime(false, '接口异常');
+  } finally {
+    if (runButton) {
+      runButton.disabled = false;
+      runButton.textContent = '一键拆解并检索';
+    }
+  }
+}
+
 function wireEvents() {
   const sourceSelect = document.getElementById('source');
   if (sourceSelect) {
@@ -498,6 +606,14 @@ function wireEvents() {
     generatorButton.addEventListener('click', (e) => {
       e.preventDefault();
       generateQuery();
+    });
+  }
+
+  const workflowButton = document.getElementById('btn-auto-workflow');
+  if (workflowButton) {
+    workflowButton.addEventListener('click', (e) => {
+      e.preventDefault();
+      runAutoWorkflow();
     });
   }
 
