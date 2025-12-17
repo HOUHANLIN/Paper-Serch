@@ -1,8 +1,8 @@
 import datetime as _dt
+import xml.etree.ElementTree as ET
 from typing import List, Optional
 
 import requests
-import xml.etree.ElementTree as ET
 
 from paper_sources import ArticleInfo, PaperSource
 from services.keys import build_cite_key
