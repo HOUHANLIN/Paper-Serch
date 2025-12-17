@@ -18,6 +18,7 @@ from paper_sources.registry import get_source, list_sources
 from services.bibtex import build_bibtex_entries
 from services.ai_query import generate_query_terms
 from services.ai_summary import apply_ai_summary, normalize_annote
+from services.directions import extract_search_directions
 
 app = Flask(__name__)
 
@@ -336,6 +337,19 @@ def _consume_search_stream(resolved: Dict[str, object]) -> Tuple[str, str, int, 
     return error, bibtex_text, count, articles, status_log
 
 
+def _prefix_status(direction: str, entries: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    prefixed: List[Dict[str, str]] = []
+    for entry in entries:
+        prefixed.append(
+            {
+                "step": f"[{direction}] {entry.get('step', '')}",
+                "status": entry.get("status", ""),
+                "detail": entry.get("detail", ""),
+            }
+        )
+    return prefixed
+
+
 # ---------- 路由 ----------
 
 
@@ -418,6 +432,147 @@ def generate_query():
         ollama_temperature=_parse_float(data.get("ollama_temperature"), 0.0),
     )
     return jsonify({"query": query, "message": message})
+
+
+@app.route("/api/auto_workflow", methods=["POST"])
+def auto_workflow():
+    data = request.get_json(force=True, silent=True) or {}
+    source = (data.get("source") or _default_source_name()).strip()
+    direction_ai_provider = (data.get("direction_ai_provider") or data.get("ai_provider") or _default_ai_provider_name()).strip()
+    query_ai_provider = (data.get("query_ai_provider") or direction_ai_provider).strip()
+    summary_ai_provider = (data.get("summary_ai_provider") or data.get("ai_provider") or _default_ai_provider_name()).strip()
+    years = _parse_int(data.get("years"), _get_default_years(source))
+    max_results = max(1, _parse_int(data.get("max_results_per_direction") or data.get("max_results"), 3))
+
+    directions, extraction_message = extract_search_directions(
+        content=data.get("content") or "",
+        ai_provider=direction_ai_provider,
+        gemini_api_key=(data.get("gemini_api_key") or "").strip(),
+        gemini_model=(data.get("gemini_model") or "").strip(),
+        gemini_temperature=_parse_float(data.get("gemini_temperature"), 0.0),
+        openai_api_key=(data.get("openai_api_key") or "").strip(),
+        openai_base_url=(data.get("openai_base_url") or "").strip(),
+        openai_model=(data.get("openai_model") or "").strip(),
+        openai_temperature=_parse_float(data.get("openai_temperature"), 0.0),
+        ollama_api_key=(data.get("ollama_api_key") or "").strip(),
+        ollama_base_url=(data.get("ollama_base_url") or "").strip(),
+        ollama_model=(data.get("ollama_model") or "").strip(),
+        ollama_temperature=_parse_float(data.get("ollama_temperature"), 0.0),
+    )
+
+    status_log: List[Dict[str, str]] = []
+    if not directions:
+        status_log.append(_status_log_entry("提取方向", "error", extraction_message))
+        return jsonify({"error": extraction_message, "status_log": status_log}), 400
+    status_log.append(_status_log_entry("提取方向", "success", extraction_message))
+
+    combined_bibtex_parts: List[str] = []
+    combined_articles: List[Dict[str, str]] = []
+    direction_details: List[Dict[str, object]] = []
+    total_count = 0
+
+    for direction in directions:
+        direction_status_log = [_status_log_entry("检索方向", "running", direction)]
+        query, query_message = _generate_query_terms(
+            source_name=source,
+            intent=direction,
+            ai_provider=query_ai_provider,
+            gemini_api_key=(data.get("gemini_api_key") or "").strip(),
+            gemini_model=(data.get("gemini_model") or "").strip(),
+            gemini_temperature=_parse_float(data.get("gemini_temperature"), 0.0),
+            openai_api_key=(data.get("openai_api_key") or "").strip(),
+            openai_base_url=(data.get("openai_base_url") or "").strip(),
+            openai_model=(data.get("openai_model") or "").strip(),
+            openai_temperature=_parse_float(data.get("openai_temperature"), 0.0),
+            ollama_api_key=(data.get("ollama_api_key") or "").strip(),
+            ollama_base_url=(data.get("ollama_base_url") or "").strip(),
+            ollama_model=(data.get("ollama_model") or "").strip(),
+            ollama_temperature=_parse_float(data.get("ollama_temperature"), 0.0),
+        )
+
+        if not query:
+            direction_status_log.append(_status_log_entry("生成检索式", "error", query_message))
+            prefixed = _prefix_status(direction, direction_status_log)
+            status_log.extend(prefixed)
+            direction_details.append(
+                {
+                    "direction": direction,
+                    "query": "",
+                    "message": query_message,
+                    "error": query_message,
+                    "status_log": prefixed,
+                }
+            )
+            continue
+
+        direction_status_log.append(_status_log_entry("生成检索式", "success", query_message))
+        resolved_payload = {
+            "source": source,
+            "query": query,
+            "years": str(years),
+            "max_results": str(max_results),
+            "ai_provider": summary_ai_provider,
+            "email": (data.get("email") or "").strip(),
+            "api_key": (data.get("api_key") or "").strip(),
+            "output": (data.get("output") or "").strip(),
+            "gemini_api_key": (data.get("gemini_api_key") or "").strip(),
+            "gemini_model": (data.get("gemini_model") or "").strip(),
+            "gemini_temperature": data.get("gemini_temperature") or "0",
+            "openai_api_key": (data.get("openai_api_key") or "").strip(),
+            "openai_base_url": (data.get("openai_base_url") or "").strip(),
+            "openai_model": (data.get("openai_model") or "").strip(),
+            "openai_temperature": data.get("openai_temperature") or "0",
+            "ollama_api_key": (data.get("ollama_api_key") or "").strip(),
+            "ollama_base_url": (data.get("ollama_base_url") or "").strip(),
+            "ollama_model": (data.get("ollama_model") or "").strip(),
+            "ollama_temperature": data.get("ollama_temperature") or "0",
+        }
+        _, resolved = _resolve_form(resolved_payload)
+        error, bibtex_text, count, articles, search_status_log = _consume_search_stream(resolved)
+        direction_status_log.extend(search_status_log)
+        prefixed = _prefix_status(direction, direction_status_log)
+        status_log.extend(prefixed)
+
+        if error:
+            direction_details.append(
+                {
+                    "direction": direction,
+                    "query": query,
+                    "message": query_message,
+                    "error": error,
+                    "status_log": prefixed,
+                }
+            )
+            continue
+
+        combined_bibtex_parts.append(bibtex_text)
+        total_count += count
+        for article in articles:
+            article["direction"] = direction
+        combined_articles.extend(articles)
+        direction_details.append(
+            {
+                "direction": direction,
+                "query": query,
+                "message": query_message,
+                "count": count,
+                "articles": articles,
+                "bibtex_text": bibtex_text,
+                "status_log": prefixed,
+            }
+        )
+
+    combined_bibtex = "\n\n".join(part.strip() for part in combined_bibtex_parts if part.strip())
+    return jsonify(
+        {
+            "directions": direction_details,
+            "status_log": status_log,
+            "bibtex_text": combined_bibtex,
+            "count": total_count,
+            "articles": combined_articles,
+            "message": extraction_message,
+        }
+    )
 
 
 @app.route("/api/search_stream", methods=["POST"])

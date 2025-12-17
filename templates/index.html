@@ -200,9 +200,27 @@
                       <div class="generator-message" id="generator-message">生成的检索式会显示在这里。</div>
                       <pre class="generator-preview" id="generator-preview" style="display: none"></pre>
                       <div class="generator-preview-actions" id="generator-preview-actions" style="display: none">
-                        <button class="btn btn-primary btn-apply" id="btn-apply-query" type="button">应用到检索式</button>
-                      </div>
+                    <button class="btn btn-primary btn-apply" id="btn-apply-query" type="button">应用到检索式</button>
+                  </div>
+                </div>
+
+                <div class="card card-soft" style="margin-bottom: 14px">
+                  <div class="section-title"><span>03</span> 自动分方向检索</div>
+                  <label for="direction-text">粘贴文章或说明文字</label>
+                  <textarea
+                    id="direction-text"
+                    name="direction_text"
+                    placeholder="例如：提供一段综述或研究计划，自动拆解检索方向、生成检索式并检索 3 篇文献"
+                  ></textarea>
+                  <div class="hint">流程：AI 提取检索方向 → 为每个方向生成检索式 → 自动检索 3 篇文献并用当前 AI 设置生成总结。</div>
+                  <div class="generator-actions">
+                    <button class="btn btn-secondary" id="btn-auto-workflow" type="button">一键拆解并检索</button>
+                    <div id="direction-output" class="generator-output">
+                      <div class="generator-message" id="direction-message">等待输入以自动拆解检索方向。</div>
+                      <ul class="direction-list" id="direction-list"></ul>
                     </div>
+                  </div>
+                </div>
                   </div>
                 </div>
 
