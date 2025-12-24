@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>Paper-Serch · 使用教程</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="topbar">
+        <div class="topbar-inner">
+          <div class="brand">
+            <div class="brand-mark"></div>
+            <div>
+              <div class="brand-text-sub">Paper-Serch</div>
+              <div class="brand-text-main">Literature &amp; AI summaries</div>
+            </div>
+          </div>
+          <div class="topbar-nav">
+            <a class="topbar-link" href="{{ url_for('index') }}">返回首页</a>
+          </div>
+          <div class="topbar-right">TUTORIAL · QUICK START</div>
+        </div>
+      </header>
+
+      <main class="page tutorial-page">
+        <div class="headline">
+          <div class="headline-pill">Guide · Web only</div>
+          <h1 class="headline-title">5 分钟上手 Paper-Serch</h1>
+          <div class="subtitle">按照页面提示完成检索、进度查看与 BibTeX 导出，无需额外工具。</div>
+        </div>
+
+        <section class="tutorial-hero">
+          <div>
+            <p class="hero-kicker">本教程只针对 Web 界面，无需 Docker 与命令行脚本。</p>
+            <h2 class="hero-title">启动 → 填写表单 → 导出 BibTeX</h2>
+            <p class="hero-desc">
+              使用 uv 管理环境，运行 Flask 服务后直接在浏览器完成检索与可选的 AI 摘要生成。表单预设示例，随时可以调整参数再运行。
+            </p>
+          </div>
+          <div class="hero-steps">
+            <div class="hero-chip">保持本地运行</div>
+            <div class="hero-chip">SSE 实时进度</div>
+            <div class="hero-chip">可选 AI 中文摘要</div>
+          </div>
+        </section>
+
+        <div class="tutorial-grid">
+          <div class="card tutorial-step">
+            <div class="step-label">01</div>
+            <h2>启动本地服务</h2>
+            <p>在仓库根目录执行以下命令，创建环境并启动 Flask：</p>
+            <pre><code>uv venv
+source .venv/bin/activate
+uv sync
+uv run webapp.py</code></pre>
+            <p>浏览器访问 <code>http://127.0.0.1:5000</code>，即可看到首页。</p>
+          </div>
+
+          <div class="card tutorial-step">
+            <div class="step-label">02</div>
+            <h2>填写检索表单</h2>
+            <ul>
+              <li>在“文献检索”区域输入检索式、时间范围与最大条数；内置示例可直接使用。</li>
+              <li>如需 AI 生成检索式，先在右侧输入需求，点击“生成”后预览并应用。</li>
+              <li>可在“工具选择”中切换文献源和 AI 模型；未使用 AI 时选择“不使用 AI 总结”。</li>
+            </ul>
+          </div>
+
+          <div class="card tutorial-step">
+            <div class="step-label">03</div>
+            <h2>补充可选的 AI 配置</h2>
+            <p>需要中文摘要时，在表单中填写：</p>
+            <ul>
+              <li>Gemini：API Key、模型名（默认 <code>gemini-2.5-flash</code>）、温度。</li>
+              <li>OpenAI 兼容接口：API Key、Base URL、模型名与温度。</li>
+              <li>本地 Ollama：可选 API Key，Base URL（默认 <code>http://localhost:11434/v1</code>）、模型名与温度。</li>
+            </ul>
+            <p>未在表单填写时，也可以通过 <code>.env</code> 提供默认值。</p>
+          </div>
+
+          <div class="card tutorial-step">
+            <div class="step-label">04</div>
+            <h2>查看进度与结果</h2>
+            <ul>
+              <li>点击“开始检索”，右侧进度卡片会流式显示检索、AI 调用与 BibTeX 生成状态。</li>
+              <li>任务完成后，下方列表会展示文献详情、AI 摘要与引用建议。</li>
+              <li>使用“复制 BibTeX”或“下载 .bib”按钮即可复用结果，数据仅在本地处理。</li>
+            </ul>
+          </div>
+        </div>
+      </main>
+    </div>
+  </body>
+</html>

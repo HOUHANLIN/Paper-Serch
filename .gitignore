@@ -1,0 +1,32 @@
+# Python 相关缓存与字节码
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# 构建 / 打包产物
+build/
+dist/
+*.egg-info/
+
+# 虚拟环境目录
+venv/
+env/
+.venv/
+
+# 操作系统 / 编辑器产生的文件
+.DS_Store
+.idea/
+.vscode/
+
+# Python 工具缓存
+.pytest_cache/
+.mypy_cache/
+
+# 自动生成的参考文献（BibTeX）文件
+*.bib
+
+# 本地环境配置文件（避免提交敏感信息）
+.env
+.env.local

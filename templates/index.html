@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>Paper-Serch · 文献检索与 BibTeX 导出</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <div class="brand-mark">
+          <span class="dot"></span>
+          <div>
+            <div class="brand-sub">Paper-Serch</div>
+            <div class="brand-title">Literature &amp; AI summaries</div>
+          </div>
+        </div>
+        <nav class="nav-links">
+          <a href="{{ url_for('index') }}">首页</a>
+          <a href="{{ url_for('tutorial') }}">使用教程</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="page">
+      <section class="hero container">
+        <div class="hero-text">
+          <p class="eyebrow">实时检索 · 中文摘要 · 本地导出</p>
+          <h1>全新界面，快速生成 BibTeX 与 AI 总结</h1>
+          <p class="lede">
+            选择数据源与 AI 模型，提交检索式或自动拆解方向。实时查看运行状态，随时复制或导出 BibTeX。
+          </p>
+          <div class="hero-chips">
+            <span class="chip">SSE 进度</span>
+            <span class="chip">自动检索式生成</span>
+            <span class="chip">可选 AI 总结</span>
+          </div>
+        </div>
+        <div class="hero-panel">
+          <div class="hero-stat">
+            <div class="stat-label">当前结果</div>
+            <div class="stat-value">{{ count }}</div>
+            <div class="stat-sub">条文献</div>
+          </div>
+          <div class="hero-stat">
+            <div class="stat-label">默认时间范围</div>
+            <div class="stat-value">{{ form.years or 5 }}</div>
+            <div class="stat-sub">最近年份</div>
+          </div>
+          <div class="hero-stat">
+            <div class="stat-label">AI 模型</div>
+            <div class="stat-value">{{ form.ai_provider|capitalize if form.ai_provider else 'None' }}</div>
+            <div class="stat-sub">摘要与检索式</div>
+          </div>
+        </div>
+      </section>
+
+      <div class="container grid">
+        <form id="search-form" method="post" class="stack">
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <p class="card-kicker">TOOLS</p>
+                <h2>AI 工具与配置</h2>
+              </div>
+            </div>
+            <div class="field-group">
+              <label for="ai_provider">选择 AI 模型</label>
+              <select id="ai_provider" name="ai_provider">
+                {% for provider in ai_providers %}
+                <option value="{{ provider.name }}" {% if form.ai_provider == provider.name %}selected{% endif %}>{{ provider.display_name }}</option>
+                {% endfor %}
+              </select>
+              <p class="muted" id="ai-config-hint">根据模型自动切换参数，留空则使用环境变量默认值。</p>
+            </div>
+            <div class="provider-panel" data-provider="gemini">
+              <div class="field-inline">
+                <label for="gemini_api_key">Gemini API Key</label>
+                <input id="gemini_api_key" name="gemini_api_key" type="text" value="{{ form.gemini_api_key }}" placeholder="留空读取 GEMINI_API_KEY" />
+              </div>
+              <div class="field-inline">
+                <label for="gemini_model">模型名称</label>
+                <input id="gemini_model" name="gemini_model" type="text" value="{{ form.gemini_model }}" placeholder="默认 gemini-2.5-flash" />
+              </div>
+              <div class="field-inline">
+                <label for="gemini_temperature">温度</label>
+                <input id="gemini_temperature" name="gemini_temperature" type="number" step="0.1" min="0" max="1" value="{{ form.gemini_temperature }}" placeholder="默认 0" />
+              </div>
+            </div>
+            <div class="provider-panel" data-provider="openai">
+              <div class="field-inline">
+                <label for="openai_api_key">OpenAI API Key</label>
+                <input id="openai_api_key" name="openai_api_key" type="text" value="{{ form.openai_api_key }}" placeholder="留空读取 OPENAI_API_KEY" />
+              </div>
+              <div class="field-inline">
+                <label for="openai_base_url">Base URL</label>
+                <input id="openai_base_url" name="openai_base_url" type="text" value="{{ form.openai_base_url }}" placeholder="兼容自托管接口" />
+              </div>
+              <div class="field-inline">
+                <label for="openai_model">模型名称</label>
+                <input id="openai_model" name="openai_model" type="text" value="{{ form.openai_model }}" placeholder="默认 gpt-4o-mini" />
+              </div>
+              <div class="field-inline">
+                <label for="openai_temperature">温度</label>
+                <input id="openai_temperature" name="openai_temperature" type="number" step="0.1" min="0" max="1" value="{{ form.openai_temperature }}" placeholder="默认 0" />
+              </div>
+            </div>
+            <div class="provider-panel" data-provider="ollama">
+              <div class="field-inline">
+                <label for="ollama_api_key">Ollama API Key</label>
+                <input id="ollama_api_key" name="ollama_api_key" type="text" value="{{ form.ollama_api_key }}" placeholder="可选：默认 ollama" />
+              </div>
+              <div class="field-inline">
+                <label for="ollama_base_url">Base URL</label>
+                <input id="ollama_base_url" name="ollama_base_url" type="text" value="{{ form.ollama_base_url }}" placeholder="默认 http://localhost:11434/v1" />
+              </div>
+              <div class="field-inline">
+                <label for="ollama_model">模型名称</label>
+                <input id="ollama_model" name="ollama_model" type="text" value="{{ form.ollama_model }}" placeholder="默认 llama3.1" />
+              </div>
+              <div class="field-inline">
+                <label for="ollama_temperature">温度</label>
+                <input id="ollama_temperature" name="ollama_temperature" type="number" step="0.1" min="0" max="1" value="{{ form.ollama_temperature }}" placeholder="默认 0" />
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <p class="card-kicker">SEARCH</p>
+                <h2>检索设置</h2>
+              </div>
+              <div class="inline-actions">
+                <label class="switch">
+                  <input type="checkbox" id="toggle-contact" />
+                  <span>显示 PubMed 邮箱/API</span>
+                </label>
+              </div>
+            </div>
+            <div class="error" id="error-box" {% if not error %}style="display: none"{% endif %}>{{ error }}</div>
+            <div class="field-row">
+              <div class="field">
+                <label for="source">文献数据源</label>
+                <select id="source" name="source">
+                  {% for source in sources %}
+                  <option value="{{ source.name }}" {% if form.source == source.name %}selected{% endif %}>{{ source.display_name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="field">
+                <label for="years">时间范围（最近几年）</label>
+                <input id="years" name="years" type="number" min="1" max="50" value="{{ form.years }}" />
+              </div>
+              <div class="field">
+                <label for="max_results">最大文献条数</label>
+                <input id="max_results" name="max_results" type="number" min="1" max="200" value="{{ form.max_results }}" />
+              </div>
+            </div>
+            <div class="field-row">
+              <div class="field">
+                <label for="output">导出文件名（可选）</label>
+                <input id="output" name="output" type="text" value="{{ form.output }}" placeholder="默认使用数据源建议" />
+              </div>
+              <div class="field" id="contact-fields">
+                <label class="optional" for="email">联系邮箱（可选）</label>
+                <input id="email" name="email" type="text" value="{{ form.email }}" placeholder="用于 PubMed 合规" />
+                <label class="optional" for="api_key">API Key（可选）</label>
+                <input id="api_key" name="api_key" type="text" value="{{ form.api_key }}" placeholder="NCBI API Key" />
+              </div>
+            </div>
+            <div class="field">
+              <label for="query">检索式</label>
+              <textarea id="query" name="query" placeholder="例如：\"artificial intelligence\" AND (\"dental implants\" OR \"implant dentistry\")">{{ form.query }}</textarea>
+            </div>
+          </div>
+
+          <div class="card split">
+            <div class="panel">
+              <p class="card-kicker">ASSIST</p>
+              <h3>AI 自动生成检索式</h3>
+              <label for="intent" class="muted">用自然语言描述你要找的文献</label>
+              <textarea id="intent" name="intent" placeholder="例如：近五年人工智能辅助口腔种植外科规划的综述"></textarea>
+              <div class="generator">
+                <button class="btn ghost" id="btn-generate-query" type="button">AI 生成检索式</button>
+                <div class="generator-preview" id="generator-preview" aria-live="polite"></div>
+                <div class="generator-actions" id="generator-actions">
+                  <button class="btn subtle" id="btn-apply-query" type="button">应用到检索式</button>
+                  <span id="generator-message" class="muted">生成的检索式会显示在这里。</span>
+                </div>
+              </div>
+            </div>
+            <div class="panel">
+              <p class="card-kicker">WORKFLOW</p>
+              <h3>自动分方向检索</h3>
+              <label for="direction-text" class="muted">粘贴文章或说明文字，自动拆解方向并检索</label>
+              <textarea id="direction-text" name="direction_text" placeholder="例如：提供研究计划，自动生成方向与检索式"></textarea>
+              <div class="generator">
+                <button class="btn ghost" id="btn-auto-workflow" type="button">一键拆解并检索</button>
+                <div class="direction-output">
+                  <p class="muted" id="direction-message">等待输入以自动拆解检索方向。</p>
+                  <ul id="direction-list" class="direction-list"></ul>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card actions">
+            <div class="actions-left">
+              <p class="card-kicker">RUN</p>
+              <h3>提交并生成 BibTeX</h3>
+              <p class="muted">运行前请检查检索式与 AI 配置，进度将实时显示在右侧。</p>
+            </div>
+            <div class="actions-right">
+              <button class="btn primary" id="submit-btn" type="submit">检索并生成 BibTeX</button>
+              <button class="btn ghost" type="button" id="copy-btn" {% if not bibtex_text %}disabled{% endif %}>复制 BibTeX</button>
+              <button class="btn subtle export-btn" type="submit" formaction="/download" {% if not bibtex_text %}disabled{% endif %}>导出 BibTeX 文件</button>
+            </div>
+            <textarea id="bibtex-hidden" name="bibtex_text" hidden>{{ bibtex_text }}</textarea>
+          </div>
+        </form>
+
+        <section class="stack">
+          <div class="card status-card">
+            <div class="status-head">
+              <div>
+                <p class="card-kicker">STATUS</p>
+                <h2>运行进度</h2>
+              </div>
+              <div class="runtime" id="runtime" data-tone="idle">
+                <span class="dot"></span>
+                <div>
+                  <div id="runtime-state">等待开始</div>
+                  <div class="muted" id="runtime-elapsed">00:00</div>
+                </div>
+              </div>
+            </div>
+            <ul class="status-list" id="status-list">
+              <li class="status-item" id="status-placeholder">
+                <span class="status-icon pending">…</span>
+                <div>
+                  <strong>等待开始</strong>
+                  <p class="muted">提交后实时显示检索、AI 与导出进度。</p>
+                </div>
+              </li>
+            </ul>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <p class="card-kicker">RESULT</p>
+                <h2>BibTeX 输出</h2>
+              </div>
+              <span class="muted" id="result-count">共 {{ count }} 条记录</span>
+            </div>
+            <textarea id="bibtex-output" class="bibtex-output" rows="16" readonly>{{ bibtex_text }}</textarea>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <p class="card-kicker">PAPERS</p>
+                <h2>文献与摘要</h2>
+              </div>
+            </div>
+            <div id="article-container" class="article-list">
+              {% if articles %}
+              {% for article in articles %}
+              <article class="paper">
+                <header class="paper-head">
+                  <h3>
+                    {% if article.url %}
+                    <a href="{{ article.url }}" target="_blank" rel="noreferrer">{{ article.title }}</a>
+                    {% else %}
+                    {{ article.title }}
+                    {% endif %}
+                  </h3>
+                  <div class="meta">
+                    {{ article.authors }} · {{ article.journal }} · {{ article.year }}
+                    {% if article.pmid %}<span class="badge">PMID: {{ article.pmid }}</span>{% endif %}
+                    {% if article.direction %}<span class="badge muted">{{ article.direction }}</span>{% endif %}
+                  </div>
+                </header>
+                {% if article.abstract %}
+                <p class="paper-abstract"><span class="label">摘要</span>{{ article.abstract }}</p>
+                {% endif %}
+                {% if article.summary_zh %}
+                <p class="paper-summary"><span class="label">AI 总结</span>{{ article.summary_zh }}</p>
+                {% endif %}
+                {% if article.usage_zh %}
+                <p class="paper-summary"><span class="label">应用建议</span>{{ article.usage_zh }}</p>
+                {% endif %}
+              </article>
+              {% endfor %}
+              {% else %}
+              <div class="muted">提交后将在此展示检索到的文献列表与 AI 总结。</div>
+              {% endif %}
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <footer class="footer">
+        <div class="container">
+          <p class="muted">LOCAL RESEARCH UTILITY</p>
+          <p>界面仅作为本地学术辅助工具使用：不会上传你的 API Key 或检索式到除必要接口以外的任何服务。</p>
+        </div>
+      </footer>
+    </main>
+
+    <script>
+      window.sourceDefaults = {{ source_defaults | tojson }};
+      window.initialStatusLog = {{ status_log | tojson }};
+    </script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+  </body>
+</html>
