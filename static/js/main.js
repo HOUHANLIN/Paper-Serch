@@ -137,30 +137,39 @@ function createStatus(entry) {
   return li;
 }
 
-function resetStatusList(initial = false) {
-  const list = $('#status-list');
-  if (!list) return;
-  list.innerHTML = '';
-  if (initial) return;
+function createStatusPlaceholder() {
   const li = document.createElement('li');
   li.className = 'status-item';
   li.id = 'status-placeholder';
   li.innerHTML = `<span class="status-icon pending">…</span><div><strong>等待开始</strong><p class="muted">提交后实时显示检索、AI 与导出进度。</p></div>`;
-  list.appendChild(li);
+  return li;
+}
+
+function resetStatusList(keepEmpty = false) {
+  const list = $('#status-list');
+  if (!list) return;
+  list.innerHTML = '';
+  if (!keepEmpty) {
+    list.appendChild(createStatusPlaceholder());
+  }
 }
 
 function appendStatus(entry) {
   const list = $('#status-list');
-  if (!list) return;
-  if (list.children.length && list.children[0].id === 'status-placeholder') list.innerHTML = '';
+  if (!list || !entry) return;
+  resetStatusList(true);
   list.appendChild(createStatus(entry));
+}
+
+function renderStatusLog(entries) {
+  if (!entries || !entries.length) return;
+  appendStatus(entries[entries.length - 1]);
 }
 
 function renderInitialStatus() {
   const initial = window.initialStatusLog || [];
   if (!initial.length) return;
-  resetStatusList(true);
-  initial.forEach((entry) => appendStatus(entry));
+  renderStatusLog(initial);
 }
 
 function updateBibtex(bibtexText, count) {
@@ -387,6 +396,7 @@ async function runAutoWorkflow(event) {
   renderArticles([]);
   updateBibtex('', 0);
   resetStatusList();
+  appendStatus({ step: '自动工作流', status: 'running', detail: '正在拆解方向并执行分方向检索…' });
   startTimer();
   if (button) {
     button.disabled = true;
@@ -424,18 +434,14 @@ async function runAutoWorkflow(event) {
     const data = await resp.json();
     if (!resp.ok) {
       showError(data.error || '自动工作流失败，请检查配置。');
-      if (data.status_log) {
-        resetStatusList(true);
-        data.status_log.forEach((entry) => appendStatus(entry));
-      }
+      if (data.status_log) renderStatusLog(data.status_log);
+      else appendStatus({ step: '自动工作流', status: 'error', detail: data.error || '自动工作流失败' });
       stopTimer(false, data.error || '自动工作流失败');
       return;
     }
     renderDirections(data.directions || []);
-    if (data.status_log) {
-      resetStatusList(true);
-      data.status_log.forEach((entry) => appendStatus(entry));
-    }
+    if (data.status_log) renderStatusLog(data.status_log);
+    else appendStatus({ step: '自动工作流', status: 'success', detail: '已完成拆解与检索。' });
     updateBibtex(data.bibtex_text || '', data.count || 0);
     renderArticles(data.articles || []);
     stopTimer(true);
