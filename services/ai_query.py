@@ -48,7 +48,10 @@ def _generate_query_via_openai(prompt: str, api_key: str, base_url: str, model: 
             messages=[
                 {
                     "role": "system",
-                    "content": "你是检索词专家，只输出最终的检索式文本，不要解释。",
+                    "content": (
+                        "你是检索词专家，只输出最终的检索式文本，"
+                        "保持简洁可检索（避免过长或罗列过多同义词），不要解释。"
+                    ),
                 },
                 {"role": "user", "content": prompt},
             ],
@@ -91,7 +94,10 @@ def _generate_query_via_ollama(prompt: str, api_key: str, base_url: str, model: 
             messages=[
                 {
                     "role": "system",
-                    "content": "你是检索词专家，只输出最终的检索式文本，不要解释。",
+                    "content": (
+                        "你是检索词专家，只输出最终的检索式文本，"
+                        "保持简洁可检索（避免过长或罗列过多同义词），不要解释。"
+                    ),
                 },
                 {"role": "user", "content": prompt},
             ],
@@ -143,7 +149,7 @@ def generate_query_terms(
         f"用户需求：{intent_clean}\n"
         f"目标站点：{source_name}\n"
         f"格式要求：{syntax_hint}\n"
-        "请直接返回最终检索式。"
+        "请直接返回最终检索式，保持紧凑易检索，避免过长或堆砌同义词。"
     )
 
     openai_defaults = OpenAIProvider()
