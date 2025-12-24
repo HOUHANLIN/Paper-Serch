@@ -28,7 +28,8 @@ def build_pubmed_query_by_rules(intent: str) -> str:
             if not term_clean:
                 continue
             if " " in term_clean or "“" in term_clean or '"' in term_clean:
-                synonym_terms.append(f'("{term_clean.strip("\" ")}"[Title/Abstract])')
+                cleaned_term = term_clean.strip('" ')
+                synonym_terms.append(f'("{cleaned_term}"[Title/Abstract])')
             else:
                 synonym_terms.append(f"({term_clean}[Title/Abstract])")
         if synonym_terms:
