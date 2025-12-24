@@ -9,11 +9,3 @@ class AiProvider(Protocol):
 
     def summarize(self, info: ArticleInfo) -> str:
         ...
-
-
-class NoopAiProvider:
-    name = "none"
-    display_name = "不使用 AI 总结"
-
-    def summarize(self, info: ArticleInfo) -> str:  # pragma: no cover - trivial passthrough
-        return ""

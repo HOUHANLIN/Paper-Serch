@@ -73,10 +73,7 @@ def _default_source_name() -> str:
 
 def _default_ai_provider_name() -> str:
     providers = list_providers()
-    for provider in providers:
-        if provider.name == "none":
-            return provider.name
-    return providers[0].name if providers else "none"
+    return providers[0].name if providers else ""
 
 
 def _default_query(source_name: str) -> str:
@@ -159,7 +156,7 @@ def _perform_search_stream(
         }
 
         ai_failed = False
-        if ai_provider and ai_provider != "none":
+        if ai_provider:
             yield {"type": "status", "entry": _emit("AI 摘要", "running", "正在生成摘要...")}
             try:
                 ai_status = apply_ai_summary(
@@ -388,6 +385,26 @@ def index():
         ai_providers=ai_providers,
         source_defaults=source_defaults,
         status_log=status_log,
+    )
+
+
+@app.route("/workflow", methods=["GET"])
+def workflow():
+    sources = list_sources()
+    ai_providers = list_providers()
+    form, _ = _resolve_form({})
+    source_defaults = {source.name: _get_source_defaults(source.name) for source in sources}
+
+    return render_template(
+        "workflow.html",
+        form=form,
+        sources=sources,
+        ai_providers=ai_providers,
+        source_defaults=source_defaults,
+        status_log=[],
+        bibtex_text="",
+        count=0,
+        articles=[],
     )
 
 

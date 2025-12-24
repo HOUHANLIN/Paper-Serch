@@ -70,8 +70,8 @@ def apply_ai_summary(
     """Apply AI summary generation to a list of articles."""
 
     provider = get_provider(provider_name)
-    if not provider or provider.name == "none":
-        return "已跳过 AI 总结（未选择模型）"
+    if not provider:
+        return "AI 摘要失败：未找到可用的 AI 模型"
 
     if isinstance(provider, GeminiProvider):
         provider.set_config(

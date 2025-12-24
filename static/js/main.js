@@ -1,9 +1,27 @@
 let generatedQuery = '';
 let runtimeTimer = null;
 let runtimeStart = null;
+const THEME_KEY = 'ps-theme';
 
 function $(selector) {
   return document.querySelector(selector);
+}
+
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  localStorage.setItem(THEME_KEY, theme);
+  const toggle = $('#theme-toggle');
+  if (toggle) {
+    toggle.setAttribute('aria-pressed', theme === 'dark');
+    toggle.textContent = theme === 'dark' ? '日间' : '夜间';
+  }
+}
+
+function initTheme() {
+  const saved = localStorage.getItem(THEME_KEY);
+  const base = document.documentElement.dataset.theme;
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  applyTheme(saved || base || prefersDark);
 }
 
 function showError(message) {
@@ -58,15 +76,6 @@ function syncProviderPanels() {
   document.querySelectorAll('.provider-panel').forEach((panel) => {
     panel.classList.toggle('active', panel.dataset.provider === value);
   });
-  const hint = $('#ai-config-hint');
-  if (!hint) return;
-  const hints = {
-    gemini: '当前使用 Gemini：可选填写下方参数，留空则使用 GEMINI_API_KEY 与默认模型。',
-    openai: '当前使用 OpenAI/兼容接口：可填写 Base URL 和模型名。',
-    ollama: '当前使用本地 Ollama：确保已启动服务，默认 http://localhost:11434/v1。',
-    none: '未启用 AI 总结：仅执行检索与 BibTeX 生成。',
-  };
-  hint.textContent = hints[value] || '选择 AI 模型后可填写对应参数。';
 }
 
 function toggleContactFields() {
@@ -186,6 +195,39 @@ function updateBibtex(bibtexText, count) {
   if (exportBtn) exportBtn.disabled = disabled;
 }
 
+function bindPaperToggles(root = document) {
+  root.querySelectorAll('.paper .toggle-abstract').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const article = btn.closest('.paper');
+      if (!article) return;
+      const expanded = article.dataset.expanded === 'true';
+      article.dataset.expanded = expanded ? 'false' : 'true';
+      btn.textContent = expanded ? '展开摘要' : '收起摘要';
+    });
+  });
+}
+
+function buildArticleMarkup(a, showDirectionBadge = true) {
+  const title = a.url ? `<a href="${a.url}" target="_blank" rel="noreferrer">${a.title}</a>` : a.title;
+  const pmid = a.pmid ? `<span class="badge">PMID: ${a.pmid}</span>` : '';
+  const direction = a.direction && showDirectionBadge ? `<span class="badge muted">${a.direction}</span>` : '';
+  const abstractBlock = a.abstract ? `<p class="paper-abstract"><span class="label">摘要</span>${a.abstract}</p>` : '';
+  const summaryBlock = a.summary_zh ? `<p class="paper-summary"><span class="label">AI 总结</span>${a.summary_zh}</p>` : '';
+  const usageBlock = a.usage_zh ? `<p class="paper-summary"><span class="label">应用建议</span>${a.usage_zh}</p>` : '';
+  const preview = a.abstract || a.summary_zh || a.usage_zh || '暂无摘要';
+  return `
+    <article class="paper" data-expanded="false">
+      <header class="paper-head">
+        <h3>${title}</h3>
+        <div class="meta">${a.authors} · ${a.journal} · ${a.year} ${pmid} ${direction}</div>
+      </header>
+      <p class="paper-preview">${preview}</p>
+      <div class="paper-details">${abstractBlock}${summaryBlock}${usageBlock}</div>
+      <button class="toggle-abstract" type="button">展开摘要</button>
+    </article>
+  `;
+}
+
 function renderArticles(articles) {
   const container = $('#article-container');
   if (!container) return;
@@ -193,24 +235,49 @@ function renderArticles(articles) {
     container.innerHTML = '<div class="muted">提交后将在此展示检索到的文献列表与 AI 总结。</div>';
     return;
   }
-  const fragments = articles.map((a) => {
-    const title = a.url ? `<a href="${a.url}" target="_blank" rel="noreferrer">${a.title}</a>` : a.title;
-    const pmid = a.pmid ? `<span class="badge">PMID: ${a.pmid}</span>` : '';
-    const direction = a.direction ? `<span class="badge muted">${a.direction}</span>` : '';
-    const abstractBlock = a.abstract ? `<p class="paper-abstract"><span class="label">摘要</span>${a.abstract}</p>` : '';
-    const summaryBlock = a.summary_zh ? `<p class="paper-summary"><span class="label">AI 总结</span>${a.summary_zh}</p>` : '';
-    const usageBlock = a.usage_zh ? `<p class="paper-summary"><span class="label">应用建议</span>${a.usage_zh}</p>` : '';
+  const fragments = articles.map((a) => buildArticleMarkup(a));
+  container.innerHTML = fragments.join('');
+  bindPaperToggles(container);
+}
+
+function renderDirectionGroups(directionDetails) {
+  const container = $('#direction-results');
+  if (!container) return;
+  if (!directionDetails || !directionDetails.length) {
+    container.innerHTML = '<div class="muted">运行后将按检索点分组展示文献。</div>';
+    return;
+  }
+  const blocks = directionDetails.map((detail, idx) => {
+    const hasError = Boolean(detail.error);
+    const articles = detail.articles || [];
+    const heading = detail.direction || `检索点 ${idx + 1}`;
+    const query = detail.query ? `<div class="direction-query-line">检索式：<code>${detail.query}</code></div>` : '';
+    const state = hasError
+      ? `<div class="direction-status error">${detail.error}</div>`
+      : `<div class="direction-status">${detail.message || `共 ${articles.length} 条结果`}</div>`;
+    const articleCards = articles.length
+      ? articles.map((a) => buildArticleMarkup(a, false)).join('')
+      : '<div class="muted">暂无检索结果</div>';
     return `
-      <article class="paper">
-        <header class="paper-head">
-          <h3>${title}</h3>
-          <div class="meta">${a.authors} · ${a.journal} · ${a.year} ${pmid} ${direction}</div>
+      <section class="direction-group" data-state="${hasError ? 'error' : 'ok'}">
+        <header class="direction-group-head">
+          <div>
+            <div class="direction-tag">检索点</div>
+            <h3>${heading}</h3>
+          </div>
+          <div class="direction-meta">
+            ${query}
+            ${state}
+          </div>
         </header>
-        ${abstractBlock}${summaryBlock}${usageBlock}
-      </article>
+        <div class="direction-articles">
+          ${articleCards}
+        </div>
+      </section>
     `;
   });
-  container.innerHTML = fragments.join('');
+  container.innerHTML = blocks.join('');
+  bindPaperToggles(container);
 }
 
 function renderDirections(directions) {
@@ -393,7 +460,11 @@ async function runAutoWorkflow(event) {
   }
   showError('');
   renderDirections([]);
-  renderArticles([]);
+  if ($('#direction-results')) {
+    renderDirectionGroups([]);
+  } else {
+    renderArticles([]);
+  }
   updateBibtex('', 0);
   resetStatusList();
   appendStatus({ step: '自动工作流', status: 'running', detail: '正在拆解方向并执行分方向检索…' });
@@ -406,7 +477,7 @@ async function runAutoWorkflow(event) {
     content: contentInput.value,
     source: $('#source')?.value || '',
     years: $('#years')?.value || '',
-    max_results_per_direction: 3,
+    max_results_per_direction: parseInt($('#max_results')?.value || '3', 10) || 3,
     direction_ai_provider: $('#ai_provider')?.value || '',
     query_ai_provider: $('#ai_provider')?.value || '',
     summary_ai_provider: $('#ai_provider')?.value || '',
@@ -441,10 +512,14 @@ async function runAutoWorkflow(event) {
     }
     renderDirections(data.directions || []);
     if (data.status_log) renderStatusLog(data.status_log);
-    else appendStatus({ step: '自动工作流', status: 'success', detail: '已完成拆解与检索。' });
-    updateBibtex(data.bibtex_text || '', data.count || 0);
-    renderArticles(data.articles || []);
-    stopTimer(true);
+      else appendStatus({ step: '自动工作流', status: 'success', detail: '已完成拆解与检索。' });
+      updateBibtex(data.bibtex_text || '', data.count || 0);
+      if ($('#direction-results')) {
+        renderDirectionGroups(data.directions || []);
+      } else {
+        renderArticles(data.articles || []);
+      }
+      stopTimer(true);
   } catch (err) {
     console.error(err);
     showError('自动工作流失败，请检查网络或 AI 配置。');
@@ -465,6 +540,10 @@ function wireEvents() {
   $('#btn-apply-query')?.addEventListener('click', applyGeneratedQuery);
   $('#btn-auto-workflow')?.addEventListener('click', runAutoWorkflow);
   $('#copy-btn')?.addEventListener('click', copyBibtex);
+  $('#theme-toggle')?.addEventListener('click', () => {
+    const current = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
+    applyTheme(current === 'dark' ? 'light' : 'dark');
+  });
   const form = $('#search-form');
   if (form) {
     form.addEventListener('submit', (e) => {
@@ -475,9 +554,11 @@ function wireEvents() {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
+  initTheme();
   applySourceDefaults();
   syncProviderPanels();
   toggleContactFields();
   renderInitialStatus();
+  bindPaperToggles();
   wireEvents();
 });
