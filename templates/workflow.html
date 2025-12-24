@@ -2,7 +2,7 @@
 <html lang="zh-CN" data-theme="light">
   <head>
     <meta charset="utf-8" />
-    <title>Paper-Serch · 文献检索与 BibTeX 导出</title>
+    <title>Paper-Serch · 自动工作流</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <script>
       (() => {
@@ -24,42 +24,41 @@
           </div>
         </a>
         <nav class="nav-links">
-          <a href="{{ url_for('index') }}" aria-current="page">首页</a>
-          <a href="{{ url_for('workflow') }}">自动工作流</a>
+          <a href="{{ url_for('index') }}">首页</a>
+          <a href="{{ url_for('workflow') }}" aria-current="page">自动工作流</a>
           <a href="{{ url_for('tutorial') }}">使用教程</a>
         </nav>
       </div>
     </header>
 
-    <main class="page">
-      {% set selected_provider = (ai_providers | selectattr('name', 'equalto', form.ai_provider) | list | first) %}
-      <section class="hero container">
+        <main class="page">
+          <section class="hero container">
         <div class="hero-text">
-          <p class="eyebrow">温暖简约 · 日夜双模</p>
-          <h1>轻松检索并整理你的文献</h1>
-          <p class="lede">紧凑的界面与柔和配色，快速选择模型与数据源，随时导出 BibTeX。</p>
+          <p class="eyebrow">方向拆解 · 批量整理</p>
+          <h1>自动分方向检索与摘要</h1>
+          <p class="lede">将长文本一键拆解成多个检索方向，自动生成检索式、获取文献并输出 BibTeX。</p>
         </div>
         <div class="hero-panel">
           <div class="metric">
-            <div class="metric-label">当前结果</div>
-            <div class="metric-value">{{ count }}</div>
-            <div class="metric-desc">条检索记录</div>
-          </div>
-          <div class="metric">
-            <div class="metric-label">默认时间</div>
+            <div class="metric-label">最近检索默认</div>
             <div class="metric-value">{{ form.years or 5 }}</div>
             <div class="metric-desc">最近年份</div>
           </div>
           <div class="metric">
-            <div class="metric-label">AI 模型</div>
-            <div class="metric-value">{{ selected_provider.display_name if selected_provider else '已启用' }}</div>
-            <div class="metric-desc">摘要与检索式</div>
+            <div class="metric-label">每个方向默认</div>
+            <div class="metric-value">{{ form.max_results or 5 }}</div>
+            <div class="metric-desc">条文献</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">导出文件名</div>
+            <div class="metric-value">{{ form.output or "pubmed_results.bib" }}</div>
+            <div class="metric-desc">可自定义</div>
           </div>
         </div>
       </section>
 
       <div class="container grid">
-        <form id="search-form" method="post" class="stack">
+        <form id="workflow-form" class="stack" method="post">
           <div class="card">
             <div class="card-head">
               <div>
@@ -130,15 +129,14 @@
           <div class="card">
             <div class="card-head">
               <div>
-                <p class="card-kicker">SEARCH</p>
-                <h2>检索设置</h2>
+                <p class="card-kicker">WORKFLOW</p>
+                <h2>自动分方向检索</h2>
               </div>
               <label class="switch">
                 <input type="checkbox" id="toggle-contact" />
                 <span>显示 PubMed 邮箱/API</span>
               </label>
             </div>
-            <div class="error" id="error-box" {% if not error %}style="display: none"{% endif %}>{{ error }}</div>
             <div class="field-row">
               <div class="field">
                 <label for="source">文献数据源</label>
@@ -153,8 +151,8 @@
                 <input id="years" name="years" type="number" min="1" max="50" value="{{ form.years }}" />
               </div>
               <div class="field">
-                <label for="max_results">最大文献条数</label>
-                <input id="max_results" name="max_results" type="number" min="1" max="200" value="{{ form.max_results }}" />
+                <label for="max_results">每个方向最大条数</label>
+                <input id="max_results" name="max_results" type="number" min="1" max="50" value="{{ form.max_results or 5 }}" />
               </div>
             </div>
             <div class="field-row">
@@ -170,37 +168,24 @@
               </div>
             </div>
             <div class="field">
-              <label for="query">检索式</label>
-              <textarea id="query" name="query" placeholder="例如：\"artificial intelligence\" AND (\"dental implants\" OR \"implant dentistry\")">{{ form.query }}</textarea>
+              <label for="direction-text">拆解内容</label>
+              <textarea id="direction-text" name="direction_text" placeholder="粘贴文章或说明文字，自动拆解方向并检索"></textarea>
             </div>
-          </div>
-
-          <div class="card">
-            <div class="card-head">
-              <div>
-                <p class="card-kicker">ASSIST</p>
-                <h2>AI 自动生成检索式</h2>
-              </div>
-            </div>
-            <label for="intent" class="muted">用自然语言描述你要找的文献</label>
-            <textarea id="intent" name="intent" placeholder="例如：近五年人工智能辅助口腔种植外科规划的综述"></textarea>
             <div class="generator">
-              <button class="btn ghost" id="btn-generate-query" type="button">AI 生成检索式</button>
-              <div class="generator-preview" id="generator-preview" aria-live="polite"></div>
-              <div class="generator-actions" id="generator-actions">
-                <button class="btn subtle" id="btn-apply-query" type="button">应用到检索式</button>
-                <span id="generator-message" class="muted">生成的检索式会显示在这里。</span>
-              </div>
+              <button class="btn primary" id="btn-auto-workflow" type="button">一键拆解并检索</button>
+            <div class="direction-output">
+              <p class="muted" id="direction-message">等待输入以自动拆解检索方向。</p>
+              <ul id="direction-list" class="direction-list"></ul>
             </div>
           </div>
+        </div>
 
-          <div class="card actions">
-            <div class="actions-left">
-              <p class="card-kicker">RUN</p>
-              <h3>提交并生成 BibTeX</h3>
+        <div class="card actions">
+          <div class="actions-left">
+            <p class="card-kicker">EXPORT</p>
+              <h3>导出与复制</h3>
             </div>
             <div class="actions-right">
-              <button class="btn primary" id="submit-btn" type="submit">检索并生成 BibTeX</button>
               <button class="btn ghost" type="button" id="copy-btn" {% if not bibtex_text %}disabled{% endif %}>复制 BibTeX</button>
               <button class="btn subtle export-btn" type="submit" formaction="/download" {% if not bibtex_text %}disabled{% endif %}>导出 BibTeX 文件</button>
             </div>
@@ -228,7 +213,7 @@
                 <span class="status-icon pending">…</span>
                 <div>
                   <strong>等待开始</strong>
-                  <p class="muted">提交后实时显示检索、AI 与导出进度。</p>
+                  <p class="muted">拆解、检索与摘要的进度会集中显示在这里。</p>
                 </div>
               </li>
             </ul>
@@ -237,42 +222,12 @@
           <div class="card">
             <div class="card-head">
               <div>
-                <p class="card-kicker">PAPERS</p>
-                <h2>文献与摘要</h2>
+                <p class="card-kicker">DIRECTIONS</p>
+                <h2>检索点与文献分组</h2>
               </div>
             </div>
-            <div id="article-container" class="article-list">
-              {% if articles %}
-              {% for article in articles %}
-              <article class="paper" data-expanded="false">
-                <header class="paper-head">
-                  <h3>
-                    {% if article.url %}
-                    <a href="{{ article.url }}" target="_blank" rel="noreferrer">{{ article.title }}</a>
-                    {% else %}
-                    {{ article.title }}
-                    {% endif %}
-                  </h3>
-                  <div class="meta">
-                    {{ article.authors }} · {{ article.journal }} · {{ article.year }}
-                    {% if article.pmid %}<span class="badge">PMID: {{ article.pmid }}</span>{% endif %}
-                    {% if article.direction %}<span class="badge muted">{{ article.direction }}</span>{% endif %}
-                  </div>
-                </header>
-                <p class="paper-preview">
-                  {{ article.abstract or article.summary_zh or article.usage_zh or "暂无摘要" }}
-                </p>
-                <div class="paper-details">
-                  {% if article.abstract %}<p class="paper-abstract"><span class="label">摘要</span>{{ article.abstract }}</p>{% endif %}
-                  {% if article.summary_zh %}<p class="paper-summary"><span class="label">AI 总结</span>{{ article.summary_zh }}</p>{% endif %}
-                  {% if article.usage_zh %}<p class="paper-summary"><span class="label">应用建议</span>{{ article.usage_zh }}</p>{% endif %}
-                </div>
-                <button class="toggle-abstract" type="button">展开摘要</button>
-              </article>
-              {% endfor %}
-              {% else %}
-              <div class="muted">提交后将在此展示检索到的文献列表与 AI 总结。</div>
-              {% endif %}
+            <div id="direction-results" class="article-list">
+              <div class="muted">运行后将在此按检索点分组展示文献。</div>
             </div>
           </div>
 
@@ -291,8 +246,8 @@
 
       <footer class="footer">
         <div class="container">
-          <p class="muted">LOCAL RESEARCH UTILITY</p>
-          <p>界面仅作为本地学术辅助工具使用：不会上传你的 API Key 或检索式到除必要接口以外的任何服务。</p>
+          <p class="muted">WORKFLOW PREVIEW</p>
+          <p>自动拆解、检索与摘要生成均在本地请求链路内执行，不保存输入内容。</p>
         </div>
       </footer>
     </main>
