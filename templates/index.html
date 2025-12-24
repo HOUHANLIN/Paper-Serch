@@ -39,23 +39,6 @@
           <h1>轻松检索并整理你的文献</h1>
           <p class="lede">紧凑的界面与柔和配色，快速选择模型与数据源，随时导出 BibTeX。</p>
         </div>
-        <div class="hero-panel">
-          <div class="metric">
-            <div class="metric-label">当前结果</div>
-            <div class="metric-value">{{ count }}</div>
-            <div class="metric-desc">条检索记录</div>
-          </div>
-          <div class="metric">
-            <div class="metric-label">默认时间</div>
-            <div class="metric-value">{{ form.years or 5 }}</div>
-            <div class="metric-desc">最近年份</div>
-          </div>
-          <div class="metric">
-            <div class="metric-label">AI 模型</div>
-            <div class="metric-value">{{ selected_provider.display_name if selected_provider else '已启用' }}</div>
-            <div class="metric-desc">摘要与检索式</div>
-          </div>
-        </div>
       </section>
 
       <div class="container grid">
@@ -88,41 +71,29 @@
                 <label for="ollama_model">模型名称</label>
                 <input id="ollama_model" name="ollama_model" type="text" value="{{ form.ollama_model }}" placeholder="默认 llama3.1" />
               </div>
-              <div class="field-inline">
-                <label for="ollama_temperature">温度</label>
-                <input id="ollama_temperature" name="ollama_temperature" type="number" step="0.1" min="0" max="1" value="{{ form.ollama_temperature }}" placeholder="默认 0" />
-              </div>
             </div>
             <div class="provider-panel" data-provider="openai">
               <div class="field-inline">
                 <label for="openai_api_key">OpenAI API Key</label>
-                <input id="openai_api_key" name="openai_api_key" type="text" value="{{ form.openai_api_key }}" placeholder="留空读取 OPENAI_API_KEY" />
+                <input id="openai_api_key" name="openai_api_key" type="text" value="{{ form.openai_api_key }}" />
               </div>
               <div class="field-inline">
                 <label for="openai_base_url">Base URL</label>
-                <input id="openai_base_url" name="openai_base_url" type="text" value="{{ form.openai_base_url }}" placeholder="兼容自托管接口" />
+                <input id="openai_base_url" name="openai_base_url" type="text" value="{{ form.openai_base_url }}" />
               </div>
               <div class="field-inline">
                 <label for="openai_model">模型名称</label>
                 <input id="openai_model" name="openai_model" type="text" value="{{ form.openai_model }}" placeholder="默认 gpt-4o-mini" />
               </div>
-              <div class="field-inline">
-                <label for="openai_temperature">温度</label>
-                <input id="openai_temperature" name="openai_temperature" type="number" step="0.1" min="0" max="1" value="{{ form.openai_temperature }}" placeholder="默认 0" />
-              </div>
             </div>
             <div class="provider-panel" data-provider="gemini">
               <div class="field-inline">
                 <label for="gemini_api_key">Gemini API Key</label>
-                <input id="gemini_api_key" name="gemini_api_key" type="text" value="{{ form.gemini_api_key }}" placeholder="留空读取 GEMINI_API_KEY" />
+                <input id="gemini_api_key" name="gemini_api_key" type="text" value="{{ form.gemini_api_key }}" />
               </div>
               <div class="field-inline">
                 <label for="gemini_model">模型名称</label>
                 <input id="gemini_model" name="gemini_model" type="text" value="{{ form.gemini_model }}" placeholder="默认 gemini-2.5-flash" />
-              </div>
-              <div class="field-inline">
-                <label for="gemini_temperature">温度</label>
-                <input id="gemini_temperature" name="gemini_temperature" type="number" step="0.1" min="0" max="1" value="{{ form.gemini_temperature }}" placeholder="默认 0" />
               </div>
             </div>
           </div>
@@ -164,14 +135,14 @@
               </div>
               <div class="field" id="contact-fields">
                 <label class="optional" for="email">联系邮箱（可选）</label>
-                <input id="email" name="email" type="text" value="{{ form.email }}" placeholder="用于 PubMed 合规" />
+                <input id="email" name="email" type="text" value="{{ form.email }}" />
                 <label class="optional" for="api_key">API Key（可选）</label>
-                <input id="api_key" name="api_key" type="text" value="{{ form.api_key }}" placeholder="NCBI API Key" />
+                <input id="api_key" name="api_key" type="text" value="{{ form.api_key }}" />
               </div>
             </div>
             <div class="field">
               <label for="query">检索式</label>
-              <textarea id="query" name="query" placeholder="例如：\"artificial intelligence\" AND (\"dental implants\" OR \"implant dentistry\")">{{ form.query }}</textarea>
+              <textarea id="query" name="query">{{ form.query }}</textarea>
             </div>
           </div>
 
@@ -183,7 +154,7 @@
               </div>
             </div>
             <label for="intent" class="muted">用自然语言描述你要找的文献</label>
-            <textarea id="intent" name="intent" placeholder="例如：近五年人工智能辅助口腔种植外科规划的综述"></textarea>
+            <textarea id="intent" name="intent"></textarea>
             <div class="generator">
               <button class="btn ghost" id="btn-generate-query" type="button">AI 生成检索式</button>
               <div class="generator-preview" id="generator-preview" aria-live="polite"></div>
@@ -238,13 +209,13 @@
             <div class="card-head">
               <div>
                 <p class="card-kicker">PAPERS</p>
-                <h2>文献与摘要</h2>
+                <h2>文献列表</h2>
               </div>
             </div>
             <div id="article-container" class="article-list">
               {% if articles %}
               {% for article in articles %}
-              <article class="paper" data-expanded="false">
+              <article class="paper">
                 <header class="paper-head">
                   <h3>
                     {% if article.url %}
@@ -259,19 +230,10 @@
                     {% if article.direction %}<span class="badge muted">{{ article.direction }}</span>{% endif %}
                   </div>
                 </header>
-                <p class="paper-preview">
-                  {{ article.abstract or article.summary_zh or article.usage_zh or "暂无摘要" }}
-                </p>
-                <div class="paper-details">
-                  {% if article.abstract %}<p class="paper-abstract"><span class="label">摘要</span>{{ article.abstract }}</p>{% endif %}
-                  {% if article.summary_zh %}<p class="paper-summary"><span class="label">AI 总结</span>{{ article.summary_zh }}</p>{% endif %}
-                  {% if article.usage_zh %}<p class="paper-summary"><span class="label">应用建议</span>{{ article.usage_zh }}</p>{% endif %}
-                </div>
-                <button class="toggle-abstract" type="button">展开摘要</button>
               </article>
               {% endfor %}
               {% else %}
-              <div class="muted">提交后将在此展示检索到的文献列表与 AI 总结。</div>
+              <div class="muted">提交后将在此展示检索到的文献列表。</div>
               {% endif %}
             </div>
           </div>

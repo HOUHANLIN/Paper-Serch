@@ -187,35 +187,16 @@ function updateBibtex(bibtexText, count) {
   if (exportBtn) exportBtn.disabled = disabled;
 }
 
-function bindPaperToggles(root = document) {
-  root.querySelectorAll('.paper .toggle-abstract').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const article = btn.closest('.paper');
-      if (!article) return;
-      const expanded = article.dataset.expanded === 'true';
-      article.dataset.expanded = expanded ? 'false' : 'true';
-      btn.textContent = expanded ? '展开摘要' : '收起摘要';
-    });
-  });
-}
-
 function buildArticleMarkup(a, showDirectionBadge = true) {
   const title = a.url ? `<a href="${a.url}" target="_blank" rel="noreferrer">${a.title}</a>` : a.title;
   const pmid = a.pmid ? `<span class="badge">PMID: ${a.pmid}</span>` : '';
   const direction = a.direction && showDirectionBadge ? `<span class="badge muted">${a.direction}</span>` : '';
-  const abstractBlock = a.abstract ? `<p class="paper-abstract"><span class="label">摘要</span>${a.abstract}</p>` : '';
-  const summaryBlock = a.summary_zh ? `<p class="paper-summary"><span class="label">AI 总结</span>${a.summary_zh}</p>` : '';
-  const usageBlock = a.usage_zh ? `<p class="paper-summary"><span class="label">应用建议</span>${a.usage_zh}</p>` : '';
-  const preview = a.abstract || a.summary_zh || a.usage_zh || '暂无摘要';
   return `
-    <article class="paper" data-expanded="false">
+    <article class="paper">
       <header class="paper-head">
         <h3>${title}</h3>
         <div class="meta">${a.authors} · ${a.journal} · ${a.year} ${pmid} ${direction}</div>
       </header>
-      <p class="paper-preview">${preview}</p>
-      <div class="paper-details">${abstractBlock}${summaryBlock}${usageBlock}</div>
-      <button class="toggle-abstract" type="button">展开摘要</button>
     </article>
   `;
 }
@@ -224,12 +205,11 @@ function renderArticles(articles) {
   const container = $('#article-container');
   if (!container) return;
   if (!articles || !articles.length) {
-    container.innerHTML = '<div class="muted">提交后将在此展示检索到的文献列表与 AI 总结。</div>';
+    container.innerHTML = '<div class="muted">提交后将在此展示检索到的文献列表。</div>';
     return;
   }
   const fragments = articles.map((a) => buildArticleMarkup(a));
   container.innerHTML = fragments.join('');
-  bindPaperToggles(container);
 }
 
 function renderDirectionGroups(directionDetails) {
@@ -269,7 +249,6 @@ function renderDirectionGroups(directionDetails) {
     `;
   });
   container.innerHTML = blocks.join('');
-  bindPaperToggles(container);
 }
 
 function renderDirections(directions) {
@@ -400,15 +379,15 @@ async function generateQuery() {
       ai_provider: $('#ai_provider')?.value || '',
       gemini_api_key: $('#gemini_api_key')?.value || '',
       gemini_model: $('#gemini_model')?.value || '',
-      gemini_temperature: $('#gemini_temperature')?.value || '',
+      gemini_temperature: 0,
       openai_api_key: $('#openai_api_key')?.value || '',
       openai_base_url: $('#openai_base_url')?.value || '',
       openai_model: $('#openai_model')?.value || '',
-      openai_temperature: $('#openai_temperature')?.value || '',
+      openai_temperature: 0,
       ollama_api_key: $('#ollama_api_key')?.value || '',
       ollama_base_url: $('#ollama_base_url')?.value || '',
       ollama_model: $('#ollama_model')?.value || '',
-      ollama_temperature: $('#ollama_temperature')?.value || '',
+      ollama_temperature: 0,
     };
     const resp = await fetch('/api/generate_query', {
       method: 'POST',
@@ -475,15 +454,15 @@ async function runAutoWorkflow(event) {
     summary_ai_provider: $('#ai_provider')?.value || '',
     gemini_api_key: $('#gemini_api_key')?.value || '',
     gemini_model: $('#gemini_model')?.value || '',
-    gemini_temperature: $('#gemini_temperature')?.value || '',
+    gemini_temperature: 0,
     openai_api_key: $('#openai_api_key')?.value || '',
     openai_base_url: $('#openai_base_url')?.value || '',
     openai_model: $('#openai_model')?.value || '',
-    openai_temperature: $('#openai_temperature')?.value || '',
+    openai_temperature: 0,
     ollama_api_key: $('#ollama_api_key')?.value || '',
     ollama_base_url: $('#ollama_base_url')?.value || '',
     ollama_model: $('#ollama_model')?.value || '',
-    ollama_temperature: $('#ollama_temperature')?.value || '',
+    ollama_temperature: 0,
     email: $('#email')?.value || '',
     api_key: $('#api_key')?.value || '',
     output: $('#output')?.value || '',
@@ -547,6 +526,5 @@ window.addEventListener('DOMContentLoaded', () => {
   syncProviderPanels();
   toggleContactFields();
   renderInitialStatus();
-  bindPaperToggles();
   wireEvents();
 });
