@@ -101,19 +101,6 @@ a:hover { color: var(--primary); }
 .nav-links a:hover { border-color: var(--border); background: var(--surface-soft); }
 .nav-links a[aria-current='page'] { border-color: var(--border); background: var(--surface-soft); }
 
-.theme-toggle {
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-  border-radius: 12px;
-  padding: 8px 12px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 700;
-}
-
 .page { padding: 18px 0 42px; }
 
 .hero {

@@ -1,7 +1,6 @@
 let generatedQuery = '';
 let runtimeTimer = null;
 let runtimeStart = null;
-const THEME_KEY = 'ps-theme';
 
 function $(selector) {
   return document.querySelector(selector);
@@ -9,19 +8,12 @@ function $(selector) {
 
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
-  localStorage.setItem(THEME_KEY, theme);
-  const toggle = $('#theme-toggle');
-  if (toggle) {
-    toggle.setAttribute('aria-pressed', theme === 'dark');
-    toggle.textContent = theme === 'dark' ? '日间' : '夜间';
-  }
 }
 
 function initTheme() {
-  const saved = localStorage.getItem(THEME_KEY);
-  const base = document.documentElement.dataset.theme;
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  applyTheme(saved || base || prefersDark);
+  const media = window.matchMedia('(prefers-color-scheme: dark)');
+  applyTheme(media.matches ? 'dark' : 'light');
+  media.addEventListener('change', (evt) => applyTheme(evt.matches ? 'dark' : 'light'));
 }
 
 function showError(message) {
@@ -540,10 +532,6 @@ function wireEvents() {
   $('#btn-apply-query')?.addEventListener('click', applyGeneratedQuery);
   $('#btn-auto-workflow')?.addEventListener('click', runAutoWorkflow);
   $('#copy-btn')?.addEventListener('click', copyBibtex);
-  $('#theme-toggle')?.addEventListener('click', () => {
-    const current = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
-    applyTheme(current === 'dark' ? 'light' : 'dark');
-  });
   const form = $('#search-form');
   if (form) {
     form.addEventListener('submit', (e) => {
