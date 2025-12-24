@@ -470,6 +470,8 @@ def auto_workflow():
     direction_details: List[Dict[str, object]] = []
     total_count = 0
 
+    max_query_retries = 3
+
     for direction in directions:
         direction_status_log = [_status_log_entry("检索方向", "running", direction)]
         query, query_message = generate_query_terms(
@@ -505,40 +507,95 @@ def auto_workflow():
             continue
 
         direction_status_log.append(_status_log_entry("生成检索式", "success", query_message))
-        resolved_payload = {
-            "source": source,
-            "query": query,
-            "years": str(years),
-            "max_results": str(max_results),
-            "ai_provider": summary_ai_provider,
-            "email": (data.get("email") or "").strip(),
-            "api_key": (data.get("api_key") or "").strip(),
-            "output": (data.get("output") or "").strip(),
-            "gemini_api_key": (data.get("gemini_api_key") or "").strip(),
-            "gemini_model": (data.get("gemini_model") or "").strip(),
-            "gemini_temperature": data.get("gemini_temperature") or "0",
-            "openai_api_key": (data.get("openai_api_key") or "").strip(),
-            "openai_base_url": (data.get("openai_base_url") or "").strip(),
-            "openai_model": (data.get("openai_model") or "").strip(),
-            "openai_temperature": data.get("openai_temperature") or "0",
-            "ollama_api_key": (data.get("ollama_api_key") or "").strip(),
-            "ollama_base_url": (data.get("ollama_base_url") or "").strip(),
-            "ollama_model": (data.get("ollama_model") or "").strip(),
-            "ollama_temperature": data.get("ollama_temperature") or "0",
-        }
-        _, resolved = _resolve_form(resolved_payload)
-        error, bibtex_text, count, articles, search_status_log = _consume_search_stream(resolved)
-        direction_status_log.extend(search_status_log)
+
+        current_query = query
+        current_query_message = query_message
+        retry_count = 0
+        search_error = ""
+        bibtex_text = ""
+        count = 0
+        articles: List[Dict[str, str]] = []
+
+        while True:
+            resolved_payload = {
+                "source": source,
+                "query": current_query,
+                "years": str(years),
+                "max_results": str(max_results),
+                "ai_provider": summary_ai_provider,
+                "email": (data.get("email") or "").strip(),
+                "api_key": (data.get("api_key") or "").strip(),
+                "output": (data.get("output") or "").strip(),
+                "gemini_api_key": (data.get("gemini_api_key") or "").strip(),
+                "gemini_model": (data.get("gemini_model") or "").strip(),
+                "gemini_temperature": data.get("gemini_temperature") or "0",
+                "openai_api_key": (data.get("openai_api_key") or "").strip(),
+                "openai_base_url": (data.get("openai_base_url") or "").strip(),
+                "openai_model": (data.get("openai_model") or "").strip(),
+                "openai_temperature": data.get("openai_temperature") or "0",
+                "ollama_api_key": (data.get("ollama_api_key") or "").strip(),
+                "ollama_base_url": (data.get("ollama_base_url") or "").strip(),
+                "ollama_model": (data.get("ollama_model") or "").strip(),
+                "ollama_temperature": data.get("ollama_temperature") or "0",
+            }
+            _, resolved = _resolve_form(resolved_payload)
+            search_error, bibtex_text, count, articles, search_status_log = _consume_search_stream(resolved)
+            direction_status_log.extend(search_status_log)
+
+            # 检索成功或非空结果则跳出循环
+            if not search_error:
+                break
+            if count > 0:
+                break
+
+            if retry_count >= max_query_retries:
+                break
+
+            retry_count += 1
+            retry_prompt = (
+                f"{direction}\n"
+                f"原检索式未能检索到结果：{current_query}\n"
+                "请在不偏离主题的前提下调整或扩展关键词，给出新的检索式。"
+            )
+            direction_status_log.append(
+                _status_log_entry("检索重试", "running", f"第 {retry_count} 次尝试改写检索式")
+            )
+            current_query, current_query_message = generate_query_terms(
+                source_name=source,
+                intent=retry_prompt,
+                ai_provider=query_ai_provider,
+                gemini_api_key=(data.get("gemini_api_key") or "").strip(),
+                gemini_model=(data.get("gemini_model") or "").strip(),
+                gemini_temperature=_parse_float(data.get("gemini_temperature"), 0.0),
+                openai_api_key=(data.get("openai_api_key") or "").strip(),
+                openai_base_url=(data.get("openai_base_url") or "").strip(),
+                openai_model=(data.get("openai_model") or "").strip(),
+                openai_temperature=_parse_float(data.get("openai_temperature"), 0.0),
+                ollama_api_key=(data.get("ollama_api_key") or "").strip(),
+                ollama_base_url=(data.get("ollama_base_url") or "").strip(),
+                ollama_model=(data.get("ollama_model") or "").strip(),
+                ollama_temperature=_parse_float(data.get("ollama_temperature"), 0.0),
+            )
+
+            if not current_query:
+                direction_status_log.append(_status_log_entry("检索重试", "error", current_query_message))
+                break
+
+            direction_status_log.append(
+                _status_log_entry("检索重试", "success", f"已生成新的检索式（重试 {retry_count}）")
+            )
+
         prefixed = _prefix_status(direction, direction_status_log)
         status_log.extend(prefixed)
 
-        if error:
+        if search_error:
             direction_details.append(
                 {
                     "direction": direction,
-                    "query": query,
-                    "message": query_message,
-                    "error": error,
+                    "query": current_query,
+                    "message": current_query_message,
+                    "error": search_error,
+                    "retry_count": retry_count,
                     "status_log": prefixed,
                 }
             )
@@ -552,11 +609,12 @@ def auto_workflow():
         direction_details.append(
             {
                 "direction": direction,
-                "query": query,
-                "message": query_message,
+                "query": current_query,
+                "message": current_query_message,
                 "count": count,
                 "articles": articles,
                 "bibtex_text": bibtex_text,
+                "retry_count": retry_count,
                 "status_log": prefixed,
             }
         )
