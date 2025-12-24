@@ -40,27 +40,37 @@
         <h1>自动分方向检索与摘要</h1>
         <p class="lede">将长文本一键拆解成多个检索方向，自动生成检索式、获取文献并输出 BibTeX。</p>
       </div>
-      <div class="hero-panel">
-        <div class="metric">
-          <div class="metric-label">最近检索默认</div>
-          <div class="metric-value">{{ form.years or 5 }}</div>
-          <div class="metric-desc">最近年份</div>
+      <div class="hero-status-module glass" id="hero-status-card">
+        <div class="status-header-row">
+          <div class="card-kicker">SYSTEM STATUS</div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div class="status-indicator" id="hero-status-indicator">
+              <span class="dot"></span>
+              <span id="hero-state-text">准备就绪</span>
+              <span class="muted" id="hero-elapsed-text" style="font-size: 12px; margin-left: 4px;">00:00</span>
+            </div>
+            <button class="status-toggle-btn" onclick="toggleStatusModule()" title="展开/收起详情">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </button>
+          </div>
         </div>
-        <div class="metric">
-          <div class="metric-label">每个方向默认</div>
-          <div class="metric-value">{{ form.max_results or 5 }}</div>
-          <div class="metric-desc">条文献</div>
-        </div>
-        <div class="metric">
-          <div class="metric-label">导出文件名</div>
-          <div class="metric-value">{{ form.output or "pubmed_results.bib" }}</div>
-          <div class="metric-desc">可自定义</div>
-        </div>
+        <ul class="hero-status-list" id="status-list">
+          <li class="status-item" id="status-placeholder">
+            <span class="status-icon pending">…</span>
+            <div>
+              <strong>等待开始</strong>
+              <p class="muted">提交后在此显示任务分解与抓取进度。</p>
+            </div>
+          </li>
+        </ul>
       </div>
     </section>
 
-    <div class="container workflow-layout">
-      <!-- Sidebar/Secondary: Configuration -->
+    <form id="workflow-form" method="post" class="container workflow-layout">
+      <!-- Configuration Sidebar -->
       <aside class="workflow-settings stack">
         <details class="card settings-collapsible" open>
           <summary class="card-head">
@@ -74,10 +84,11 @@
             <div class="field-group">
               <label for="ai_provider">AI 模型</label>
               <select id="ai_provider" name="ai_provider">
-                {% for provider in ai_providers %}
-                <option value="{{ provider.name }}" {% if form.ai_provider==provider.name %}selected{% endif %}>{{
-                  provider.display_name }}</option>
-                {% endfor %}
+                <option value="openai" {% if form.ai_provider=='openai' or not form.ai_provider %}selected{% endif %}>
+                  OpenAI</option>
+                <option value="gemini" {% if form.ai_provider=='gemini' %}selected{% endif %}>Gemini</option>
+                <option value="ollama" {% if form.ai_provider=='ollama' %}selected{% endif %}>
+                  Ollama</option>
               </select>
             </div>
 
@@ -149,81 +160,95 @@
         </details>
       </aside>
 
-      <!-- Main: Workspace -->
+      <!-- Main Workspace Area -->
       <div class="workflow-main stack">
-        <form id="workflow-form" method="post" class="stack">
-          <div class="card workspace-card">
-            <div class="card-head">
-              <div>
-                <p class="card-kicker">WORKSPACE</p>
-                <h2>拆解内容并检索</h2>
-              </div>
-            </div>
-            <div class="field">
-              <textarea id="direction-text" name="direction_text" placeholder="粘贴研究背景或说明文字，AI 将自动拆解方向并检索..."
-                class="large-input"></textarea>
-            </div>
-            <div class="generator-actions">
-              <button class="btn primary large" id="btn-auto-workflow" type="button">一键拆解并检索</button>
-              <input id="output" name="output" type="hidden" value="{{ form.output }}" />
-            </div>
-            <div class="direction-output-wrapper">
-              <ul id="direction-list" class="direction-list inline-labels"></ul>
-            </div>
-          </div>
-
-          <div class="card bibtex-consolidated glass">
-            <div class="card-head">
-              <div>
-                <p class="card-kicker">OUTPUT</p>
-                <h2>BibTeX 结果</h2>
-              </div>
-              <div class="actions-right">
-                <span class="muted" id="result-count">共 {{ count }} 条</span>
-                <button class="btn ghost btn-sm" type="button" id="copy-btn" {% if not bibtex_text %}disabled{% endif
-                  %}>复制</button>
-                <button class="btn subtle btn-sm export-btn" type="submit" formaction="/download" {% if not bibtex_text
-                  %}disabled{% endif %}>导出文件</button>
-              </div>
-            </div>
-            <textarea id="bibtex-output" class="bibtex-output mini" readonly>{{ bibtex_text }}</textarea>
-            <textarea id="bibtex-hidden" name="bibtex_text" hidden>{{ bibtex_text }}</textarea>
-          </div>
-        </form>
-
-        <div class="card status-card glass">
-          <div class="status-head">
+        <div class="card workspace-card">
+          <div class="card-head">
             <div>
-              <p class="card-kicker">STATUS</p>
-              <h2>运行进度</h2>
-            </div>
-            <div class="runtime" id="runtime" data-tone="idle">
-              <span class="dot"></span>
-              <div>
-                <div id="runtime-state">等待开始</div>
-                <div class="muted" id="runtime-elapsed">00:00</div>
-              </div>
+              <p class="card-kicker">WORKSPACE</p>
+              <h2>拆解内容并检索</h2>
             </div>
           </div>
-          <ul class="status-list" id="status-list">
-            <li class="status-item" id="status-placeholder">
-              <span class="status-icon pending">…</span>
-              <div>
-                <strong>等待开始</strong>
-                <p class="muted">拆解与检索的进度会集中显示在这里。</p>
-              </div>
-            </li>
-          </ul>
+          <div class="field">
+            <textarea id="direction-text" name="direction_text" placeholder="粘贴研究背景或说明文字，AI 将自动拆解方向并检索..."
+              class="large-input"></textarea>
+          </div>
+          <div class="generator-actions">
+            <button class="btn primary" id="btn-auto-workflow" type="button">一键拆解并检索</button>
+            <div class="direction-output">
+              <ul id="direction-list" class="direction-list"></ul>
+            </div>
+          </div>
         </div>
 
-        <div id="direction-results" class="article-list">
-          <div class="card">
-            <div class="muted">运行后将在此按检索点分组展示文献。</div>
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <p class="card-kicker">PAPERS</p>
+              <h2>文献列表</h2>
+            </div>
           </div>
+          <div id="article-container" class="article-list">
+            {% if articles %}
+            {% for article in articles %}
+            <article class="paper" id="paper-{{ article.pmid or loop.index }}">
+              <header class="paper-head">
+                <h3>
+                  {% if article.url %}
+                  <a href="{{ article.url }}" target="_blank" rel="noreferrer">{{ article.title }}</a>
+                  {% else %}
+                  {{ article.title }}
+                  {% endif %}
+                </h3>
+                <div class="meta">{{ article.authors }} · {{ article.journal }} · {{ article.year }} {% if article.pmid
+                  %}<span class="badge">PMID: {{ article.pmid }}</span>{% endif %} {% if article.direction %}<span
+                    class="badge muted">{{ article.direction }}</span>{% endif %}</div>
+              </header>
+
+              <div class="paper-details visible">
+                {% if article.summary_zh %}
+                <div class="ai-content-box">
+                  <div class="card-kicker">✨ 全文概括</div>
+                  <p class="paper-summary">{{ article.summary_zh }}</p>
+                </div>
+                {% endif %}
+                {% if article.usage_zh %}
+                <div class="ai-content-box usage">
+                  <div class="card-kicker">🎯 引用建议</div>
+                  <p class="paper-summary">{{ article.usage_zh }}</p>
+                </div>
+                {% endif %}
+                {% if not article.summary_zh and not article.usage_zh %}
+                <p class="muted">暂无 AI 总结</p>
+                {% endif %}
+              </div>
+            </article>
+            {% endfor %}
+            {% else %}
+            <div class="muted">提交后将在此展示检索到的文献列表。</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="card bibtex-consolidated glass">
+          <div class="card-head">
+            <div>
+              <p class="card-kicker">OUTPUT</p>
+              <h2>BibTeX 结果</h2>
+            </div>
+            <div class="actions-right">
+              <span class="muted" id="result-count">共 {{ count }} 条</span>
+              <button class="btn ghost btn-sm" type="button" id="copy-btn" {% if not bibtex_text %}disabled{% endif
+                %}>复制</button>
+              <button class="btn subtle btn-sm export-btn" type="submit" formaction="/download" {% if not bibtex_text
+                %}disabled{% endif %}>导出文件</button>
+            </div>
+          </div>
+          <textarea id="bibtex-output" class="bibtex-output mini" readonly>{{ bibtex_text }}</textarea>
+          <textarea id="bibtex-hidden" form="workflow-form" name="bibtex_text" hidden>{{ bibtex_text }}</textarea>
         </div>
       </div>
-    </div>
-    </div>
+    </form>
 
     <footer class="footer">
       <div class="container">

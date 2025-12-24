@@ -75,9 +75,14 @@ class OpenAIProvider(AiProvider):
         year = (info.year or "").strip()
 
         system_prompt = (
-            "你是一名医学文献综述助手，请将摘要转为 JSON，格式为\\n"
-            '{"summary_zh":"简要中文总结","usage_zh":"如何在论文/综述中使用该文献"}。'
-            "请返回严格的 JSON，不要包含额外文字或 Markdown。"
+            "你是一名医学文献综述助手，请根据给定的题目和摘要，输出一个 JSON 对象，"
+            "仅包含以下两个字段：\n"
+            "{\n"
+            '  "summary_zh": "用中文 2-4 句话概括文章的研究目的、方法和主要结论",\n'
+            '  "usage_zh": "用中文说明在撰写综述或论文时，这篇文章可以如何被引用或使用，'
+            '例如适合放在背景、方法、结果讨论中的哪一部分，以及它支持/补充了哪些观点"\n'
+            "}\n\n"
+            "只输出合法 JSON，不要输出任何解释性文字或 Markdown。"
         )
         user_prompt = (
             f"标题: {title}\n期刊: {journal}\n年份: {year}\n摘要: {abstract}\n"

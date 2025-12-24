@@ -72,8 +72,7 @@ def _default_source_name() -> str:
 
 
 def _default_ai_provider_name() -> str:
-    providers = list_providers()
-    return providers[0].name if providers else ""
+    return "openai"
 
 
 def _default_query(source_name: str) -> str:

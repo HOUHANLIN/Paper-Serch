@@ -79,10 +79,15 @@ function toggleContactFields() {
 }
 
 function setRuntime(text, tone = 'idle') {
-  const runtime = $('#runtime');
-  const state = $('#runtime-state');
-  if (runtime) runtime.dataset.tone = tone;
-  if (state) state.textContent = text;
+  const heroStatusCard = $('#hero-status-card');
+  const heroState = $('#hero-state-text');
+  const heroIndicator = $('#hero-status-indicator');
+
+  if (heroStatusCard) heroStatusCard.dataset.tone = tone;
+  if (heroState) heroState.textContent = text;
+  if (heroIndicator) {
+    heroIndicator.dataset.running = (tone === 'running');
+  }
 }
 
 function formatElapsed(seconds) {
@@ -93,11 +98,12 @@ function formatElapsed(seconds) {
 
 function startTimer() {
   runtimeStart = Date.now();
-  const elapsedEl = $('#runtime-elapsed');
+  const heroElapsed = $('#hero-elapsed-text');
   const tick = () => {
-    if (!runtimeStart || !elapsedEl) return;
+    if (!runtimeStart) return;
     const seconds = Math.max(0, Math.floor((Date.now() - runtimeStart) / 1000));
-    elapsedEl.textContent = formatElapsed(seconds);
+    const formatted = formatElapsed(seconds);
+    if (heroElapsed) heroElapsed.textContent = formatted;
   };
   tick();
   if (runtimeTimer) clearInterval(runtimeTimer);
@@ -108,10 +114,11 @@ function startTimer() {
 function stopTimer(success = true, message = '') {
   if (runtimeTimer) clearInterval(runtimeTimer);
   runtimeTimer = null;
-  const elapsedEl = $('#runtime-elapsed');
-  if (runtimeStart && elapsedEl) {
+  const heroElapsed = $('#hero-elapsed-text');
+  if (runtimeStart) {
     const seconds = Math.max(0, Math.floor((Date.now() - runtimeStart) / 1000));
-    elapsedEl.textContent = formatElapsed(seconds);
+    const formatted = formatElapsed(seconds);
+    if (heroElapsed) heroElapsed.textContent = formatted;
   }
   runtimeStart = null;
   const prefix = success ? '已完成' : '运行失败';
@@ -120,17 +127,22 @@ function stopTimer(success = true, message = '') {
 
 function createStatus(entry) {
   const li = document.createElement('li');
-  li.className = 'status-item';
-  const icon = document.createElement('span');
   const status = entry.status || 'pending';
+  li.className = `status-item ${status}`;
+  li.dataset.step = entry.step || '';
+
+  const icon = document.createElement('span');
   icon.className = `status-icon ${status}`;
   icon.textContent = status === 'success' ? '✓' : status === 'error' ? '!' : '…';
+
   const textBox = document.createElement('div');
   const strong = document.createElement('strong');
   strong.textContent = entry.step || '';
+
   const detail = document.createElement('p');
-  detail.className = 'muted';
+  detail.className = 'muted status-detail';
   detail.textContent = entry.detail || '';
+
   textBox.appendChild(strong);
   textBox.appendChild(detail);
   li.appendChild(icon);
@@ -138,38 +150,71 @@ function createStatus(entry) {
   return li;
 }
 
-function createStatusPlaceholder() {
-  const li = document.createElement('li');
-  li.className = 'status-item';
-  li.id = 'status-placeholder';
-  li.innerHTML = `<span class="status-icon pending">…</span><div><strong>等待开始</strong><p class="muted">提交后实时显示检索、AI 与导出进度。</p></div>`;
-  return li;
-}
-
-function resetStatusList(keepEmpty = false) {
+function resetStatusList(withInitialSteps = false) {
   const list = $('#status-list');
   if (!list) return;
   list.innerHTML = '';
-  if (!keepEmpty) {
-    list.appendChild(createStatusPlaceholder());
+  if (withInitialSteps) {
+    const steps = ['准备检索', '检索中', 'AI 摘要', 'BibTeX 生成'];
+    steps.forEach(step => {
+      list.appendChild(createStatus({ step, status: 'pending', detail: '等待执行...' }));
+    });
   }
 }
 
 function appendStatus(entry) {
   const list = $('#status-list');
   if (!list || !entry) return;
-  resetStatusList(true);
-  list.appendChild(createStatus(entry));
+
+  // Find existing step or create new
+  let item = list.querySelector(`li[data-step="${entry.step}"]`);
+  if (!item) {
+    // If it's a sub-step or workflow direction, append it
+    item = createStatus(entry);
+    list.appendChild(item);
+  } else {
+    // Update existing
+    const status = entry.status || 'pending';
+    item.className = `status-item ${status} active`;
+    const icon = item.querySelector('.status-icon');
+    if (icon) {
+      icon.className = `status-icon ${status}`;
+      icon.textContent = status === 'success' ? '✓' : status === 'error' ? '!' : '…';
+    }
+    const detail = item.querySelector('.status-detail');
+    if (detail) detail.textContent = entry.detail || '';
+  }
+
+  // Set other items as not active
+  list.querySelectorAll('.status-item').forEach(li => {
+    if (li !== item) li.classList.remove('active');
+  });
+
+  // Scroll to active
+  item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
+
+window.toggleStatusModule = function () {
+  const card = $('#hero-status-card');
+  if (card) card.classList.toggle('expanded');
+};
 
 function renderStatusLog(entries) {
   if (!entries || !entries.length) return;
-  appendStatus(entries[entries.length - 1]);
+  resetStatusList(false);
+  entries.forEach(entry => appendStatus(entry));
 }
 
 function renderInitialStatus() {
   const initial = window.initialStatusLog || [];
-  if (!initial.length) return;
+  if (!initial.length) {
+    resetStatusList(false);
+    const placeholder = document.createElement('li');
+    placeholder.className = 'status-item active';
+    placeholder.innerHTML = `<span class="status-icon pending">…</span><div><strong>等待开始</strong><p class="muted">提交后在此显示实时进度。</p></div>`;
+    $('#status-list')?.appendChild(placeholder);
+    return;
+  }
   renderStatusLog(initial);
 }
 
@@ -191,15 +236,40 @@ function buildArticleMarkup(a, showDirectionBadge = true) {
   const title = a.url ? `<a href="${a.url}" target="_blank" rel="noreferrer">${a.title}</a>` : a.title;
   const pmid = a.pmid ? `<span class="badge">PMID: ${a.pmid}</span>` : '';
   const direction = a.direction && showDirectionBadge ? `<span class="badge muted">${a.direction}</span>` : '';
+
   return `
-    <article class="paper">
+    <article class="paper" id="paper-${a.pmid || Math.random().toString(36).substr(2, 9)}">
       <header class="paper-head">
         <h3>${title}</h3>
         <div class="meta">${a.authors} · ${a.journal} · ${a.year} ${pmid} ${direction}</div>
       </header>
+
+      <div class="paper-details visible">
+        ${a.summary_zh ? `
+          <div class="ai-content-box">
+            <div class="card-kicker">✨ 全文概括</div>
+            <p class="paper-summary">${a.summary_zh}</p>
+          </div>
+        ` : ''}
+        ${a.usage_zh ? `
+          <div class="ai-content-box usage">
+            <div class="card-kicker">🎯 引用建议</div>
+            <p class="paper-summary">${a.usage_zh}</p>
+          </div>
+        ` : ''}
+        ${!a.summary_zh && !a.usage_zh ? '<p class="muted">暂无 AI 总结</p>' : ''}
+      </div>
     </article>
   `;
 }
+
+window.togglePaper = function (btn) {
+  const paper = btn.closest('.paper');
+  const isExpanded = paper.dataset.expanded === 'true';
+  paper.dataset.expanded = !isExpanded;
+  btn.querySelector('.btn-text').textContent = isExpanded ? '查看摘要与 AI 总结' : '收起详情';
+  btn.querySelector('.icon').textContent = isExpanded ? '↓' : '↑';
+};
 
 function renderArticles(articles) {
   const container = $('#article-container');
@@ -296,7 +366,7 @@ async function streamSearch(event) {
   const form = $('#search-form');
   const submit = $('#submit-btn');
   if (!form) return;
-  resetStatusList();
+  resetStatusList(true); // withInitialSteps
   showError('');
   updateBibtex('', 0);
   renderArticles([]);
@@ -387,7 +457,7 @@ async function generateQuery() {
       ollama_api_key: $('#ollama_api_key')?.value || '',
       ollama_base_url: $('#ollama_base_url')?.value || '',
       ollama_model: $('#ollama_model')?.value || '',
-      ollama_temperature: 0,
+      ollama_temperature: parseFloat($('#ollama_temperature')?.value || '0'),
     };
     const resp = await fetch('/api/generate_query', {
       method: 'POST',
@@ -437,8 +507,8 @@ async function runAutoWorkflow(event) {
     renderArticles([]);
   }
   updateBibtex('', 0);
-  resetStatusList();
-  appendStatus({ step: '自动工作流', status: 'running', detail: '正在拆解方向并执行分方向检索…' });
+  resetStatusList(true); // withInitialSteps
+  appendStatus({ step: '自动工作流', status: 'running', detail: '正在拆解内容方向...' });
   startTimer();
   if (button) {
     button.disabled = true;
@@ -462,7 +532,7 @@ async function runAutoWorkflow(event) {
     ollama_api_key: $('#ollama_api_key')?.value || '',
     ollama_base_url: $('#ollama_base_url')?.value || '',
     ollama_model: $('#ollama_model')?.value || '',
-    ollama_temperature: 0,
+    ollama_temperature: parseFloat($('#ollama_temperature')?.value || '0'),
     email: $('#email')?.value || '',
     api_key: $('#api_key')?.value || '',
     output: $('#output')?.value || '',
@@ -483,14 +553,14 @@ async function runAutoWorkflow(event) {
     }
     renderDirections(data.directions || []);
     if (data.status_log) renderStatusLog(data.status_log);
-      else appendStatus({ step: '自动工作流', status: 'success', detail: '已完成拆解与检索。' });
-      updateBibtex(data.bibtex_text || '', data.count || 0);
-      if ($('#direction-results')) {
-        renderDirectionGroups(data.directions || []);
-      } else {
-        renderArticles(data.articles || []);
-      }
-      stopTimer(true);
+    else appendStatus({ step: '自动工作流', status: 'success', detail: '已完成拆解与检索。' });
+    updateBibtex(data.bibtex_text || '', data.count || 0);
+    if ($('#direction-results')) {
+      renderDirectionGroups(data.directions || []);
+    } else {
+      renderArticles(data.articles || []);
+    }
+    stopTimer(true);
   } catch (err) {
     console.error(err);
     showError('自动工作流失败，请检查网络或 AI 配置。');
