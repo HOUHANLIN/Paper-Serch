@@ -1,6 +1,7 @@
 let generatedQuery = '';
 let runtimeTimer = null;
 let runtimeStart = null;
+const BASE_STATUS_STEPS = ['准备检索', '检索中', 'AI 摘要', 'BibTeX 生成'];
 
 function $(selector) {
   return document.querySelector(selector);
@@ -90,6 +91,29 @@ function setRuntime(text, tone = 'idle') {
   }
 }
 
+function formatClock(date) {
+  const hh = String(date.getHours()).padStart(2, '0');
+  const mm = String(date.getMinutes()).padStart(2, '0');
+  const ss = String(date.getSeconds()).padStart(2, '0');
+  return `${hh}:${mm}:${ss}`;
+}
+
+function escapeAttrValue(value) {
+  return String(value || '').replace(/"/g, '\\"');
+}
+
+function updateProgress() {
+  const progressEl = $('#hero-progress-text');
+  const list = $('#status-list');
+  if (!progressEl || !list) return;
+  const total = BASE_STATUS_STEPS.length;
+  const done = BASE_STATUS_STEPS.filter((step) => {
+    const item = list.querySelector(`li[data-step="${escapeAttrValue(step)}"]`);
+    return item && item.classList.contains('success');
+  }).length;
+  progressEl.textContent = `${done}/${total}`;
+}
+
 function formatElapsed(seconds) {
   const mm = String(Math.floor(seconds / 60)).padStart(2, '0');
   const ss = String(seconds % 60).padStart(2, '0');
@@ -133,17 +157,27 @@ function createStatus(entry) {
 
   const icon = document.createElement('span');
   icon.className = `status-icon ${status}`;
-  icon.textContent = status === 'success' ? '✓' : status === 'error' ? '!' : '…';
+  icon.textContent = status === 'success' ? '✓' : status === 'error' ? '!' : status === 'running' ? '⏳' : '…';
 
   const textBox = document.createElement('div');
+  const titleRow = document.createElement('div');
+  titleRow.className = 'status-title-row';
+
   const strong = document.createElement('strong');
   strong.textContent = entry.step || '';
+
+  const time = document.createElement('span');
+  time.className = 'status-time muted';
+  time.textContent = entry.time || formatClock(new Date());
+
+  titleRow.appendChild(strong);
+  titleRow.appendChild(time);
 
   const detail = document.createElement('p');
   detail.className = 'muted status-detail';
   detail.textContent = entry.detail || '';
 
-  textBox.appendChild(strong);
+  textBox.appendChild(titleRow);
   textBox.appendChild(detail);
   li.appendChild(icon);
   li.appendChild(textBox);
@@ -155,11 +189,13 @@ function resetStatusList(withInitialSteps = false) {
   if (!list) return;
   list.innerHTML = '';
   if (withInitialSteps) {
-    const steps = ['准备检索', '检索中', 'AI 摘要', 'BibTeX 生成'];
-    steps.forEach(step => {
+    BASE_STATUS_STEPS.forEach(step => {
       list.appendChild(createStatus({ step, status: 'pending', detail: '等待执行...' }));
     });
+    const first = list.querySelector('.status-item');
+    if (first) first.classList.add('active');
   }
+  updateProgress();
 }
 
 function appendStatus(entry) {
@@ -167,7 +203,7 @@ function appendStatus(entry) {
   if (!list || !entry) return;
 
   // Find existing step or create new
-  let item = list.querySelector(`li[data-step="${entry.step}"]`);
+  let item = list.querySelector(`li[data-step="${escapeAttrValue(entry.step)}"]`);
   if (!item) {
     // If it's a sub-step or workflow direction, append it
     item = createStatus(entry);
@@ -175,20 +211,26 @@ function appendStatus(entry) {
   } else {
     // Update existing
     const status = entry.status || 'pending';
-    item.className = `status-item ${status} active`;
+    item.className = `status-item ${status}`;
     const icon = item.querySelector('.status-icon');
     if (icon) {
       icon.className = `status-icon ${status}`;
-      icon.textContent = status === 'success' ? '✓' : status === 'error' ? '!' : '…';
+      icon.textContent = status === 'success' ? '✓' : status === 'error' ? '!' : status === 'running' ? '⏳' : '…';
     }
+    const time = item.querySelector('.status-time');
+    if (time) time.textContent = entry.time || formatClock(new Date());
     const detail = item.querySelector('.status-detail');
     if (detail) detail.textContent = entry.detail || '';
   }
+
+  item.classList.add('active');
 
   // Set other items as not active
   list.querySelectorAll('.status-item').forEach(li => {
     if (li !== item) li.classList.remove('active');
   });
+
+  updateProgress();
 
   // Scroll to active
   item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -196,7 +238,9 @@ function appendStatus(entry) {
 
 window.toggleStatusModule = function () {
   const card = $('#hero-status-card');
-  if (card) card.classList.toggle('expanded');
+  if (!card) return;
+  card.classList.toggle('expanded');
+  localStorage.setItem('ps-status-expanded', card.classList.contains('expanded') ? '1' : '0');
 };
 
 function renderStatusLog(entries) {
@@ -211,7 +255,7 @@ function renderInitialStatus() {
     resetStatusList(false);
     const placeholder = document.createElement('li');
     placeholder.className = 'status-item active';
-    placeholder.innerHTML = `<span class="status-icon pending">…</span><div><strong>等待开始</strong><p class="muted">提交后在此显示实时进度。</p></div>`;
+    placeholder.innerHTML = `<span class="status-icon pending">…</span><div><div class="status-title-row"><strong>等待开始</strong><span class="status-time muted">${formatClock(new Date())}</span></div><p class="muted status-detail">提交后在此显示实时进度。</p></div>`;
     $('#status-list')?.appendChild(placeholder);
     return;
   }
@@ -592,6 +636,8 @@ function wireEvents() {
 
 window.addEventListener('DOMContentLoaded', () => {
   initTheme();
+  const card = $('#hero-status-card');
+  if (card) card.classList.toggle('expanded', localStorage.getItem('ps-status-expanded') === '1');
   applySourceDefaults();
   syncProviderPanels();
   toggleContactFields();

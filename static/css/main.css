@@ -8,9 +8,12 @@
   --muted: #6f5c52;
   --primary: #d88b4a;
   --primary-strong: #b86f35;
+  --primary-soft: #f1e1d2;
   --accent: #c7bbff;
   --success: #3fa574;
   --error: #d0564c;
+  --glass-bg: rgba(255, 250, 243, 0.72);
+  --glass-border: rgba(227, 216, 203, 0.6);
   --shadow: 0 12px 40px rgba(60, 40, 20, 0.08);
   font-family: "Inter", "SF Pro Text", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background-color: var(--bg);
@@ -47,6 +50,12 @@ body {
     radial-gradient(100% 100% at 80% 0%, rgba(199, 187, 255, 0.12), transparent),
     var(--bg);
   color: var(--text);
+}
+
+.glass {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(12px);
 }
 
 a {
@@ -148,16 +157,30 @@ a:hover {
 }
 
 .hero-status-module {
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(12px);
   border-radius: 20px;
   padding: 20px;
   display: flex;
   flex-direction: column;
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow);
   width: 380px;
   flex-shrink: 0;
   transition: all 0.3s ease;
+}
+
+.hero-status-module[data-tone='running'] {
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+  box-shadow: 0 12px 40px color-mix(in srgb, var(--primary) 14%, transparent);
+}
+
+.hero-status-module[data-tone='success'] {
+  border-color: color-mix(in srgb, var(--success) 40%, var(--border));
+}
+
+.hero-status-module[data-tone='error'] {
+  border-color: color-mix(in srgb, var(--error) 40%, var(--border));
 }
 
 .hero-status-module .card-kicker {
@@ -266,7 +289,7 @@ a:hover {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  padding: 4px 0;
+  padding: 6px 0;
   opacity: 0.6;
   transition: opacity 0.2s;
 }
@@ -279,6 +302,26 @@ a:hover {
 
 .status-item.active strong {
   color: var(--primary);
+}
+
+.status-item.active {
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  border-radius: 14px;
+  padding: 10px 12px;
+  margin: -2px -8px;
+}
+
+.status-title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.status-time {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 11px;
+  flex-shrink: 0;
 }
 
 .status-icon {
@@ -308,10 +351,10 @@ a:hover {
 .status-icon.running {
   background: var(--primary-soft);
   color: var(--primary);
-  animation: pulse 1.5s infinite;
+  animation: statusPulse 1.5s infinite;
 }
 
-@keyframes pulse {
+@keyframes statusPulse {
   0% {
     opacity: 0.6;
   }
@@ -329,6 +372,11 @@ a:hover {
   font-size: 12px;
   margin: 2px 0 0;
   line-height: 1.4;
+}
+
+.status-detail {
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .status-indicator {
@@ -353,10 +401,10 @@ a:hover {
 .status-indicator[data-running='true'] .dot {
   background: var(--primary);
   box-shadow: 0 0 10px var(--primary);
-  animation: pulse 1.5s infinite;
+  animation: dotPulse 1.5s infinite;
 }
 
-@keyframes pulse {
+@keyframes dotPulse {
   0% {
     opacity: 1;
   }
