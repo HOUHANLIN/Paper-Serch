@@ -10,21 +10,27 @@ from ai_providers.openai_provider import OpenAIProvider
 from openai import OpenAI
 
 
-_SYSTEM_DIRECTION_PROMPT = (
-    "你是科研助理，请从给定的文本中提取 3-6 个可用于学术检索的方向，"
-    "每行只输出一个方向的简洁标题，不要解释，不要编号。"
-)
+def _build_system_direction_prompt(desired_count: int | None) -> str:
+    if desired_count and desired_count > 0:
+        return (
+            "你是科研助理，请从给定的文本中提取适合学术检索的主题方向，"
+            f"请输出且只输出 {desired_count} 个方向，每行一个简洁标题，不要解释，不要编号。"
+        )
+    return (
+        "你是科研助理，请从给定的文本中提取 3-6 个可用于学术检索的方向，"
+        "每行只输出一个方向的简洁标题，不要解释，不要编号。"
+    )
 
 
 def _extract_directions_via_openai(
-    prompt: str, api_key: str, base_url: str, model: str, temperature: float
+    prompt: str, api_key: str, base_url: str, model: str, temperature: float, desired_count: int | None
 ) -> str:
     client = OpenAI(api_key=api_key, base_url=base_url or None)
     completion = client.chat.completions.create(
         model=model or "gpt-4o-mini",
         temperature=temperature,
         messages=[
-            {"role": "system", "content": _SYSTEM_DIRECTION_PROMPT},
+            {"role": "system", "content": _build_system_direction_prompt(desired_count)},
             {"role": "user", "content": prompt},
         ],
         max_tokens=480,
@@ -34,14 +40,14 @@ def _extract_directions_via_openai(
 
 
 def _extract_directions_via_ollama(
-    prompt: str, api_key: str, base_url: str, model: str, temperature: float
+    prompt: str, api_key: str, base_url: str, model: str, temperature: float, desired_count: int | None
 ) -> str:
     client = OpenAI(api_key=api_key or "ollama", base_url=base_url or "http://localhost:11434/v1")
     completion = client.chat.completions.create(
         model=model or "llama3.1",
         temperature=temperature,
         messages=[
-            {"role": "system", "content": _SYSTEM_DIRECTION_PROMPT},
+            {"role": "system", "content": _build_system_direction_prompt(desired_count)},
             {"role": "user", "content": prompt},
         ],
         max_tokens=480,
@@ -50,7 +56,9 @@ def _extract_directions_via_ollama(
     return (content or "").strip()
 
 
-def _extract_directions_via_gemini(prompt: str, api_key: str, model: str, temperature: float) -> str:
+def _extract_directions_via_gemini(
+    prompt: str, api_key: str, model: str, temperature: float, desired_count: int | None
+) -> str:
     provider = GeminiProvider()
     provider.set_config(api_key=api_key, model=model or None, temperature=temperature)
     if not provider._ensure_client():  # pylint: disable=protected-access
@@ -61,7 +69,10 @@ def _extract_directions_via_gemini(prompt: str, api_key: str, model: str, temper
     if types is None or client is None:
         return ""
 
-    contents = [types.Content(role="user", parts=[types.Part.from_text(text=prompt)])]
+    system_prompt = _build_system_direction_prompt(desired_count)
+    contents = [
+        types.Content(role="user", parts=[types.Part.from_text(text=f"{system_prompt}\n\n{prompt}")])
+    ]
     config = types.GenerateContentConfig(temperature=temperature)
     chunks: List[str] = []
     for chunk in client.models.generate_content_stream(model=provider.model, contents=contents, config=config):
@@ -95,6 +106,7 @@ def extract_search_directions(
     ollama_base_url: str,
     ollama_model: str,
     ollama_temperature: float,
+    desired_count: int | None = None,
 ) -> Tuple[List[str], str]:
     """Use the configured AI provider to extract searchable directions."""
     content_clean = (content or "").strip()
@@ -131,6 +143,7 @@ def extract_search_directions(
                 resolved_openai_base_url,
                 resolved_openai_model,
                 resolved_openai_temperature,
+                desired_count,
             )
         elif ai_provider == "gemini":
             if not resolved_gemini_api_key:
@@ -140,6 +153,7 @@ def extract_search_directions(
                 resolved_gemini_api_key,
                 resolved_gemini_model,
                 resolved_gemini_temperature,
+                desired_count,
             )
         elif ai_provider == "ollama":
             raw_output = _extract_directions_via_ollama(
@@ -148,6 +162,7 @@ def extract_search_directions(
                 resolved_ollama_base_url,
                 resolved_ollama_model,
                 resolved_ollama_temperature,
+                desired_count,
             )
         else:
             return [], "当前未选择可用的 AI 提取方式。"
@@ -157,4 +172,9 @@ def extract_search_directions(
     directions = _parse_direction_lines(raw_output)
     if not directions:
         return [], "AI 未返回有效的检索方向，请检查配置。"
+    if desired_count and desired_count > 0:
+        trimmed = directions[:desired_count]
+        if len(trimmed) == desired_count:
+            return trimmed, f"已提取 {len(trimmed)} 个检索方向"
+        return trimmed, f"已提取 {len(trimmed)} 个检索方向（少于期望的 {desired_count} 个）"
     return directions, f"已提取 {len(directions)} 个检索方向"

@@ -17,6 +17,25 @@ const STATUS_STEP_ORDER = [
 const DYNAMIC_STEP_BASE_RANK = STATUS_STEP_ORDER.length + 100;
 const dynamicStepRanks = new Map();
 let dynamicRankCounter = 0;
+const TOOLBAR_SETTINGS_KEY = 'ps-toolbar-settings-v1';
+const TOOLBAR_FIELDS = [
+  { id: 'ai_provider', mode: 'value' },
+  { id: 'source', mode: 'value' },
+  { id: 'years', mode: 'value' },
+  { id: 'max_results', mode: 'value' },
+  { id: 'direction_count', mode: 'value' },
+  { id: 'toggle-contact', mode: 'checked' },
+  { id: 'email', mode: 'value' },
+  { id: 'api_key', mode: 'value' },
+  { id: 'openai_api_key', mode: 'value' },
+  { id: 'openai_base_url', mode: 'value' },
+  { id: 'openai_model', mode: 'value' },
+  { id: 'gemini_api_key', mode: 'value' },
+  { id: 'gemini_model', mode: 'value' },
+  { id: 'ollama_api_key', mode: 'value' },
+  { id: 'ollama_base_url', mode: 'value' },
+  { id: 'ollama_model', mode: 'value' },
+];
 
 function $(selector) {
   return document.querySelector(selector);
@@ -122,6 +141,101 @@ function formatClock(date) {
 
 function escapeAttrValue(value) {
   return String(value || '').replace(/"/g, '\\"');
+}
+
+function loadToolbarSettings() {
+  try {
+    const raw = localStorage.getItem(TOOLBAR_SETTINGS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveToolbarSettings() {
+  try {
+    const settings = {};
+    TOOLBAR_FIELDS.forEach(({ id, mode }) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (mode === 'checked') settings[id] = Boolean(el.checked);
+      else settings[id] = String(el.value ?? '');
+    });
+    localStorage.setItem(TOOLBAR_SETTINGS_KEY, JSON.stringify(settings));
+  } catch {
+    // ignore
+  }
+}
+
+function restoreToolbarSettings() {
+  const settings = loadToolbarSettings();
+  TOOLBAR_FIELDS.forEach(({ id, mode }) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (!(id in settings)) return;
+    if (mode === 'checked') el.checked = Boolean(settings[id]);
+    else el.value = String(settings[id] ?? '');
+  });
+}
+
+function clearDatalist(datalistId) {
+  const dl = document.getElementById(datalistId);
+  if (!dl) return;
+  dl.innerHTML = '';
+}
+
+function fillDatalist(datalistId, models) {
+  const dl = document.getElementById(datalistId);
+  if (!dl) return;
+  dl.innerHTML = '';
+  (models || []).forEach((m) => {
+    const opt = document.createElement('option');
+    opt.value = String(m || '');
+    dl.appendChild(opt);
+  });
+}
+
+async function loadModelsForProvider() {
+  const provider = $('#ai_provider')?.value || '';
+  const message = $('#models-message');
+  const btn = $('#btn-load-models');
+  if (!provider) return;
+  if (btn) btn.disabled = true;
+  if (message) message.textContent = '正在获取模型列表...';
+
+  try {
+    const body = {
+      provider,
+      openai_api_key: $('#openai_api_key')?.value || '',
+      openai_base_url: $('#openai_base_url')?.value || '',
+      ollama_api_key: $('#ollama_api_key')?.value || '',
+      ollama_base_url: $('#ollama_base_url')?.value || '',
+      gemini_api_key: $('#gemini_api_key')?.value || '',
+    };
+    const resp = await fetch('/api/list_models', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      const err = data.error || '获取失败，请检查配置或网络';
+      if (message) message.textContent = err;
+      return;
+    }
+    const models = data.models || [];
+    if (provider === 'openai') fillDatalist('openai-model-options', models);
+    if (provider === 'ollama') fillDatalist('ollama-model-options', models);
+    if (provider === 'gemini') fillDatalist('gemini-model-options', models);
+    if (message) message.textContent = data.message || `已获取 ${models.length} 个模型`;
+  } catch (err) {
+    console.error(err);
+    if (message) message.textContent = '获取失败，请检查配置或网络';
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 function normalizeStepName(step) {
@@ -632,6 +746,7 @@ async function runAutoWorkflow(event) {
     content: contentInput.value,
     source: $('#source')?.value || '',
     years: $('#years')?.value || '',
+    direction_count: parseInt($('#direction_count')?.value || '', 10) || '',
     max_results_per_direction: parseInt($('#max_results')?.value || '3', 10) || 3,
     direction_ai_provider: $('#ai_provider')?.value || '',
     query_ai_provider: $('#ai_provider')?.value || '',
@@ -696,6 +811,15 @@ function wireEvents() {
   $('#btn-apply-query')?.addEventListener('click', applyGeneratedQuery);
   $('#btn-auto-workflow')?.addEventListener('click', runAutoWorkflow);
   $('#copy-btn')?.addEventListener('click', copyBibtex);
+  $('#btn-load-models')?.addEventListener('click', loadModelsForProvider);
+
+  TOOLBAR_FIELDS.forEach(({ id }) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('change', saveToolbarSettings);
+    el.addEventListener('input', saveToolbarSettings);
+  });
+
   const form = $('#search-form');
   if (form) {
     form.addEventListener('submit', (e) => {
@@ -709,6 +833,7 @@ window.addEventListener('DOMContentLoaded', () => {
   initTheme();
   const card = $('#hero-status-card');
   if (card) card.classList.toggle('expanded', localStorage.getItem('ps-status-expanded') === '1');
+  restoreToolbarSettings();
   applySourceDefaults();
   syncProviderPanels();
   toggleContactFields();

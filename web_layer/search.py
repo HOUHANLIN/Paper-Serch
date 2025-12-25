@@ -70,6 +70,7 @@ def perform_search_stream(
             raise RuntimeError(f"未找到名为 {source} 的文献数据源")
 
         yield {"type": "status", "entry": _emit("准备检索", "success", f"数据源：{source_obj.display_name}")}
+
         yield {"type": "status", "entry": _emit("检索中", "running", "正在向数据源获取文献...")}
 
         articles = source_obj.search(
@@ -172,4 +173,3 @@ def prefix_status(direction: str, entries: List[Dict[str, str]]) -> List[Dict[st
         }
         for entry in entries
     ]
-

@@ -11,6 +11,7 @@ from flask import (
 
 from ai_providers.registry import list_providers
 from services.ai_query import generate_query_terms
+from services.ai_models import list_gemini_models, list_ollama_models, list_openai_models
 from services.directions import extract_search_directions
 from paper_sources.registry import list_sources
 from web_layer.forms import (
@@ -138,6 +139,31 @@ def generate_query():
     return jsonify({"query": query, "message": message})
 
 
+@app.route("/api/list_models", methods=["POST"])
+def list_models():
+    data = request.get_json(force=True, silent=True) or {}
+    provider = (data.get("provider") or data.get("ai_provider") or "").strip()
+    if provider not in {"openai", "gemini", "ollama"}:
+        return jsonify({"error": "不支持的 AI Provider", "models": []}), 400
+
+    if provider == "openai":
+        models, message = list_openai_models(
+            api_key=(data.get("openai_api_key") or "").strip(),
+            base_url=(data.get("openai_base_url") or "").strip(),
+        )
+    elif provider == "ollama":
+        models, message = list_ollama_models(
+            api_key=(data.get("ollama_api_key") or "").strip(),
+            base_url=(data.get("ollama_base_url") or "").strip(),
+        )
+    else:
+        models, message = list_gemini_models(api_key=(data.get("gemini_api_key") or "").strip())
+
+    if not models:
+        return jsonify({"error": message or "未获取到模型列表", "models": []}), 400
+    return jsonify({"models": models, "message": message})
+
+
 @app.route("/api/auto_workflow", methods=["POST"])
 def auto_workflow():
     data = request.get_json(force=True, silent=True) or {}
@@ -150,6 +176,11 @@ def auto_workflow():
         data.get("summary_ai_provider") or data.get("ai_provider") or default_ai_provider_name()
     ).strip()
     years = parse_int(data.get("years"), int(get_source_defaults(source)["years"]))
+    desired_count = parse_int(data.get("direction_count"), 0)
+    if desired_count <= 0:
+        desired_count = None
+    elif desired_count > 12:
+        desired_count = 12
     max_results = max(
         1,
         parse_int(data.get("max_results_per_direction") or data.get("max_results"), 3),
@@ -169,8 +200,8 @@ def auto_workflow():
         ollama_base_url=(data.get("ollama_base_url") or "").strip(),
         ollama_model=(data.get("ollama_model") or "").strip(),
         ollama_temperature=parse_float(data.get("ollama_temperature"), 0.0),
+        desired_count=desired_count,
     )
-
     status_log: List[Dict[str, str]] = []
     if not directions:
         status_log.append(status_log_entry("提取方向", "error", extraction_message))
@@ -251,13 +282,12 @@ def auto_workflow():
                 "ollama_temperature": data.get("ollama_temperature") or "0",
             }
             _, resolved = resolve_form(resolved_payload)
+            if not summary_ai_provider:
+                resolved["ai_provider"] = ""
             search_error, bibtex_text, count, articles, search_status_log = consume_search_stream(resolved)
             direction_status_log.extend(search_status_log)
 
-            # 检索成功或非空结果则跳出循环
-            if not search_error:
-                break
-            if count > 0:
+            if not search_error or count > 0:
                 break
 
             if retry_count >= max_query_retries:
@@ -291,9 +321,7 @@ def auto_workflow():
                 direction_status_log.append(status_log_entry("检索重试", "error", current_query_message))
                 break
 
-            direction_status_log.append(
-                status_log_entry("检索重试", "success", f"已生成新的检索式（重试 {retry_count}）")
-            )
+            direction_status_log.append(status_log_entry("检索重试", "success", f"已生成新的检索式（重试 {retry_count}）"))
 
         prefixed = prefix_status(direction, direction_status_log)
         status_log.extend(prefixed)
