@@ -246,22 +246,19 @@ a:hover {
   list-style: none;
   padding: 0;
   margin: 0;
-  max-height: 200px;
+  max-height: 220px;
   overflow-y: auto;
   font-size: 13px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  gap: 10px;
+  align-content: start;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .hero-status-module:not(.expanded) .hero-status-list {
-  max-height: 48px;
-  overflow: hidden;
-}
-
-.hero-status-module:not(.expanded) .hero-status-list .status-item:not(.active) {
-  display: none;
+  max-height: 140px;
+  overflow-y: auto;
 }
 
 .hero-status-module.expanded .hero-status-list {
@@ -286,10 +283,13 @@ a:hover {
 }
 
 .status-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 6px 0;
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
   opacity: 0.6;
   transition: opacity 0.2s;
 }
@@ -305,10 +305,14 @@ a:hover {
 }
 
 .status-item.active {
-  background: color-mix(in srgb, var(--primary) 12%, transparent);
-  border-radius: 14px;
-  padding: 10px 12px;
-  margin: -2px -8px;
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary) 22%, var(--border));
+}
+
+@media (max-width: 640px) {
+  .hero-status-list {
+    grid-template-columns: 1fr;
+  }
 }
 
 .status-title-row {
@@ -366,17 +370,6 @@ a:hover {
   100% {
     opacity: 0.6;
   }
-}
-
-.status-item p.muted {
-  font-size: 12px;
-  margin: 2px 0 0;
-  line-height: 1.4;
-}
-
-.status-detail {
-  white-space: pre-wrap;
-  word-break: break-word;
 }
 
 .status-indicator {
@@ -829,15 +822,11 @@ textarea {
   color: var(--error);
 }
 
-.direction-query-line {
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.direction-query code {
-  background: color-mix(in srgb, var(--primary) 12%, transparent);
-  padding: 2px 6px;
-  border-radius: 8px;
+.direction-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
 }
 
 .actions {

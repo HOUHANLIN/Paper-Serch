@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 import json
 import re
+import random
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Tuple
 
@@ -118,14 +120,27 @@ def apply_ai_summary(
 
     def _summarize_one(idx: int) -> Tuple[int, str]:
         info = infos[idx]
-        provider = get_provider(provider_name)
-        if not provider:
+        if not (info.abstract or "").strip():
             return idx, ""
-        try:
-            _configure(provider)
-            return idx, provider.summarize(info) or ""
-        except Exception:  # pylint: disable=broad-except
-            return idx, ""
+
+        max_retry = 2
+        for attempt in range(max_retry + 1):
+            provider = get_provider(provider_name)
+            if not provider:
+                return idx, ""
+            try:
+                _configure(provider)
+                summary = (provider.summarize(info) or "").strip()
+                if summary:
+                    return idx, summary
+            except Exception:  # pylint: disable=broad-except
+                summary = ""
+
+            if attempt < max_retry:
+                delay = min(2.0, 0.3 * (2**attempt) + random.uniform(0.0, 0.2))
+                time.sleep(delay)
+
+        return idx, ""
 
     if max_workers <= 1 or len(infos) <= 1:
         for idx in range(len(infos)):

@@ -5,6 +5,7 @@ const BASE_STATUS_STEPS = ['准备检索', '检索中', 'AI 摘要', 'BibTeX 生
 const STATUS_STEP_ORDER = [
   '自动工作流',
   '提取方向',
+  '并发检索',
   '检索方向',
   '生成检索式',
   '检索重试',
@@ -12,7 +13,9 @@ const STATUS_STEP_ORDER = [
   '检索中',
   '检索完成',
   'AI 摘要',
+  '总结完成',
   'BibTeX 生成',
+  '流程中断',
 ];
 const DYNAMIC_STEP_BASE_RANK = STATUS_STEP_ORDER.length + 100;
 const dynamicStepRanks = new Map();
@@ -268,7 +271,7 @@ function updateProgress() {
   if (!progressEl || !list) return;
   const total = BASE_STATUS_STEPS.length;
   const done = BASE_STATUS_STEPS.filter((step) => {
-    const item = list.querySelector(`li[data-step="${escapeAttrValue(step)}"]`);
+    const item = statusState.items.get(step) || list.querySelector(`li[data-step="${escapeAttrValue(step)}"]`);
     return item && item.classList.contains('success');
   }).length;
   progressEl.textContent = `${done}/${total}`;
@@ -334,12 +337,7 @@ function createStatus(entry) {
   titleRow.appendChild(strong);
   titleRow.appendChild(time);
 
-  const detail = document.createElement('p');
-  detail.className = 'muted status-detail';
-  detail.textContent = entry.detail || '';
-
   textBox.appendChild(titleRow);
-  textBox.appendChild(detail);
   li.appendChild(icon);
   li.appendChild(textBox);
   return li;
@@ -349,52 +347,129 @@ function resetStatusList(withInitialSteps = false) {
   const list = $('#status-list');
   if (!list) return;
   list.innerHTML = '';
+  statusState.clear();
   if (withInitialSteps) {
     BASE_STATUS_STEPS.forEach(step => {
-      list.appendChild(createStatus({ step, status: 'pending', detail: '等待执行...' }));
+      const li = createStatus({ step, status: 'pending', detail: '等待执行...' });
+      statusState.items.set(step, li);
+      list.appendChild(li);
     });
     const first = list.querySelector('.status-item');
-    if (first) first.classList.add('active');
+    if (first) {
+      first.classList.add('active');
+      statusState.activeEl = first;
+    }
   }
   updateProgress();
 }
 
-function appendStatus(entry) {
-  const list = $('#status-list');
-  if (!list || !entry) return;
+const statusState = {
+  items: new Map(), // step -> <li>
+  pending: new Map(), // step -> latest entry
+  pendingOrder: [], // steps in arrival order (for active selection)
+  flushScheduled: false,
+  activeEl: null,
+  clear() {
+    this.items.clear();
+    this.pending.clear();
+    this.pendingOrder.length = 0;
+    this.flushScheduled = false;
+    this.activeEl = null;
+  },
+};
 
-  // Find existing step or create new
-  let item = list.querySelector(`li[data-step="${escapeAttrValue(entry.step)}"]`);
-  if (!item) {
-    item = createStatus(entry);
-    insertStatusItemOrdered(list, item);
-  } else {
-    // Update existing
-    const status = entry.status || 'pending';
-    item.className = `status-item ${status}`;
-    item.dataset.rank = String(getStepRank(entry.step || item.dataset.step || ''));
-    const icon = item.querySelector('.status-icon');
-    if (icon) {
-      icon.className = `status-icon ${status}`;
-      icon.textContent = status === 'success' ? '✓' : status === 'error' ? '!' : status === 'running' ? '⏳' : '…';
+function _updateStatusItem(item, entry) {
+  const status = entry.status || 'pending';
+  item.className = `status-item ${status}`;
+  item.dataset.rank = String(getStepRank(entry.step || item.dataset.step || ''));
+  const icon = item.querySelector('.status-icon');
+  if (icon) {
+    icon.className = `status-icon ${status}`;
+    icon.textContent = status === 'success' ? '✓' : status === 'error' ? '!' : status === 'running' ? '⏳' : '…';
+  }
+  const time = item.querySelector('.status-time');
+  if (time) time.textContent = entry.time || formatClock(new Date());
+}
+
+function _insertStatusItem(list, item, step) {
+  // Base steps keep their order; dynamic steps append to avoid O(n) reorder thrash under concurrency.
+  const normalized = normalizeStepName(step || '');
+  const isBase = STATUS_STEP_ORDER.includes(normalized) || BASE_STATUS_STEPS.includes(normalized);
+  if (!isBase) {
+    list.appendChild(item);
+    return;
+  }
+  insertStatusItemOrdered(list, item);
+}
+
+function _flushStatusUpdates() {
+  statusState.flushScheduled = false;
+  const list = $('#status-list');
+  if (!list) return;
+
+  const placeholder = document.getElementById('status-placeholder');
+  if (placeholder) placeholder.remove();
+
+  let lastActiveStep = null;
+  for (const step of statusState.pendingOrder) {
+    const entry = statusState.pending.get(step);
+    if (!entry) continue;
+
+    let item = statusState.items.get(step);
+    if (!item) {
+      item = createStatus(entry);
+      statusState.items.set(step, item);
+      _insertStatusItem(list, item, step);
+    } else {
+      _updateStatusItem(item, entry);
     }
-    const time = item.querySelector('.status-time');
-    if (time) time.textContent = entry.time || formatClock(new Date());
-    const detail = item.querySelector('.status-detail');
-    if (detail) detail.textContent = entry.detail || '';
+    lastActiveStep = step;
   }
 
-  item.classList.add('active');
+  statusState.pending.clear();
+  statusState.pendingOrder.length = 0;
 
-  // Set other items as not active
-  list.querySelectorAll('.status-item').forEach(li => {
-    if (li !== item) li.classList.remove('active');
-  });
+  if (lastActiveStep) {
+    const activeEl = statusState.items.get(lastActiveStep);
+    if (activeEl) {
+      if (statusState.activeEl && statusState.activeEl !== activeEl) {
+        statusState.activeEl.classList.remove('active');
+      }
+      activeEl.classList.add('active');
+      statusState.activeEl = activeEl;
+
+      const card = $('#hero-status-card');
+      const expanded = Boolean(card && card.classList.contains('expanded'));
+      if (expanded) {
+        const nearBottom = list.scrollTop + list.clientHeight >= list.scrollHeight - 40;
+        if (nearBottom) list.scrollTop = list.scrollHeight;
+      }
+    }
+  }
 
   updateProgress();
+}
 
-  // Scroll to active
-  item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+function appendStatus(entry) {
+  if (!entry || !entry.step) return;
+  const step = String(entry.step || '');
+  statusState.pending.set(step, entry);
+  statusState.pendingOrder.push(step);
+
+  // Some steps are only emitted as "running" and never explicitly finalized by the backend.
+  // Make them "done" once a later terminal step arrives, so the UI doesn't get stuck at ⏳.
+  if (step === '检索完成' && (entry.status === 'success' || entry.status === 'error')) {
+    statusState.pending.set('检索中', {
+      step: '检索中',
+      status: entry.status === 'error' ? 'error' : 'success',
+      detail: '已结束',
+    });
+    statusState.pendingOrder.push('检索中');
+  }
+
+  if (statusState.flushScheduled) return;
+  statusState.flushScheduled = true;
+  requestAnimationFrame(_flushStatusUpdates);
 }
 
 function ensureAiStatusFinal(payload) {
@@ -437,7 +512,7 @@ function renderInitialStatus() {
     resetStatusList(false);
     const placeholder = document.createElement('li');
     placeholder.className = 'status-item active';
-    placeholder.innerHTML = `<span class="status-icon pending">…</span><div><div class="status-title-row"><strong>等待开始</strong><span class="status-time muted">${formatClock(new Date())}</span></div><p class="muted status-detail">提交后在此显示实时进度。</p></div>`;
+    placeholder.innerHTML = `<span class="status-icon pending">…</span><div><div class="status-title-row"><strong>等待开始</strong><span class="status-time muted">${formatClock(new Date())}</span></div></div>`;
     $('#status-list')?.appendChild(placeholder);
     return;
   }
@@ -519,7 +594,6 @@ function renderDirectionGroups(directionDetails) {
     const hasError = Boolean(detail.error);
     const articles = detail.articles || [];
     const heading = detail.direction || `检索点 ${idx + 1}`;
-    const query = detail.query ? `<div class="direction-query-line">检索式：<code>${detail.query}</code></div>` : '';
     const state = hasError
       ? `<div class="direction-status error">${detail.error}</div>`
       : `<div class="direction-status">${detail.message || `共 ${articles.length} 条结果`}</div>`;
@@ -534,7 +608,6 @@ function renderDirectionGroups(directionDetails) {
             <h3>${heading}</h3>
           </div>
           <div class="direction-meta">
-            ${query}
             ${state}
           </div>
         </header>
@@ -557,15 +630,38 @@ function renderDirections(directions) {
     return;
   }
   message.textContent = '已提取到以下检索方向：';
+  const hasAiContent = (articles) => {
+    if (!Array.isArray(articles)) return false;
+    return articles.some((a) => {
+      const summary = String((a && a.summary_zh) || '').trim();
+      const usage = String((a && a.usage_zh) || '').trim();
+      return summary || usage;
+    });
+  };
   list.innerHTML = directions
     .map((item) => {
-      const status = item.error
-        ? `<div class="direction-status error">${item.error}</div>`
-        : item.message
-          ? `<div class="direction-status">${item.message}</div>`
-          : '';
-      const queryBlock = item.query ? `<div class="direction-query"><span>检索式：</span><code>${item.query}</code></div>` : '';
-      return `<li><div class="direction-title">${item.direction || '未命名方向'}</div>${status}${queryBlock}</li>`;
+      const direction = item.direction || '未命名方向';
+      const error = item.error ? `<div class="direction-status error">${item.error}</div>` : '';
+
+      const countVal =
+        typeof item.count === 'number' ? item.count : Array.isArray(item.articles) ? item.articles.length : null;
+      const countText = countVal == null ? '—' : String(countVal);
+
+      const retryCount = typeof item.retry_count === 'number' ? item.retry_count : null;
+      const retryText = retryCount == null ? '—' : String(retryCount);
+
+      const aiOk = hasAiContent(item.articles);
+      const aiText = item.error ? '否' : aiOk ? '是' : countVal == null ? '—' : '否';
+
+      const metrics = `
+        <div class="direction-metrics">
+          <span class="badge muted">结果：${countText}</span>
+          <span class="badge muted">AI 总结：${aiText}</span>
+          <span class="badge muted">重试：${retryText}</span>
+        </div>
+      `;
+
+      return `<li><div class="direction-title">${direction}</div>${metrics}${error}</li>`;
     })
     .join('');
 }
@@ -735,7 +831,7 @@ async function runAutoWorkflow(event) {
     renderArticles([]);
   }
   updateBibtex('', 0);
-  resetStatusList(true); // withInitialSteps
+  resetStatusList(false);
   appendStatus({ step: '自动工作流', status: 'running', detail: '正在拆解内容方向...' });
   startTimer();
   if (button) {
@@ -776,7 +872,7 @@ async function runAutoWorkflow(event) {
     if (!resp.ok || !resp.body) {
       const data = await resp.json().catch(() => ({}));
       showError(data.error || '自动工作流失败，请检查配置。');
-      if (data.status_log) renderStatusLog(data.status_log);
+      if (data.status_log) renderStatusLog((data.status_log || []).filter((e) => !String(e.step || '').startsWith('[')));
       else appendStatus({ step: '自动工作流', status: 'error', detail: data.error || '自动工作流失败' });
       stopTimer(false, data.error || '自动工作流失败');
       return;
@@ -786,9 +882,32 @@ async function runAutoWorkflow(event) {
     const decoder = new TextDecoder();
     let buffer = '';
     const directionDetails = [];
+    let workflowTotal = 0;
+    let scheduledDirectionRender = false;
     const combinedBibtexParts = [];
     let combinedCount = 0;
     let combinedArticles = [];
+    let workflowFinished = 0;
+    let workflowAnyError = false;
+    let milestonesEmitted = false;
+
+    const scheduleRenderDirections = () => {
+      if (scheduledDirectionRender) return;
+      scheduledDirectionRender = true;
+      requestAnimationFrame(() => {
+        scheduledDirectionRender = false;
+        renderDirections(directionDetails);
+        if ($('#direction-results')) renderDirectionGroups(directionDetails);
+      });
+    };
+
+    const maybeEmitMilestones = () => {
+      if (milestonesEmitted || !workflowTotal) return;
+      if (workflowFinished < workflowTotal) return;
+      appendStatus({ step: '检索完成', status: workflowAnyError ? 'error' : 'success' });
+      appendStatus({ step: '总结完成', status: workflowAnyError ? 'error' : 'success' });
+      milestonesEmitted = true;
+    };
 
     const updateCombined = () => {
       const combinedBibtex = combinedBibtexParts.filter(Boolean).join('\n\n');
@@ -804,59 +923,73 @@ async function runAutoWorkflow(event) {
       buffer = parts.pop() || '';
       parts.filter(Boolean).forEach((part) => {
         const { eventType, payload } = parseSse(part);
-        if (eventType === 'status' && payload.entry) appendStatus(payload.entry);
+        if (eventType === 'status' && payload.entry) {
+          const step = String(payload.entry.step || '');
+          if (!step.startsWith('[')) appendStatus(payload.entry);
+        }
         if (eventType === 'error' && payload.message) {
           showError(payload.message);
           stopTimer(false, payload.message);
+          appendStatus({ step: '自动工作流', status: 'error', detail: payload.message });
         }
         if (eventType === 'workflow_init') {
           const dirs = payload.directions || [];
           directionDetails.length = 0;
+          workflowTotal = Array.isArray(dirs) ? dirs.length : 0;
+          workflowFinished = 0;
+          workflowAnyError = false;
+          milestonesEmitted = false;
           dirs.forEach((d) => directionDetails.push({ direction: String(d || ''), message: '等待执行...' }));
-          renderDirections(directionDetails);
-          if ($('#direction-results')) renderDirectionGroups(directionDetails);
+          scheduleRenderDirections();
         }
         if (eventType === 'direction_result' && payload.detail) {
           const idx = Number(payload.index || 0);
           if (!Number.isNaN(idx) && idx >= 0) directionDetails[idx] = payload.detail;
-          renderDirections(directionDetails);
+          workflowFinished += 1;
+          if (payload.detail.error) workflowAnyError = true;
+          maybeEmitMilestones();
+          scheduleRenderDirections();
           if (payload.detail && !payload.detail.error) {
             combinedCount += Number(payload.detail.count || 0);
             if (payload.detail.bibtex_text) combinedBibtexParts.push(String(payload.detail.bibtex_text || '').trim());
             const articles = payload.detail.articles || [];
             if (Array.isArray(articles) && articles.length) combinedArticles = combinedArticles.concat(articles);
             updateCombined();
-          } else if ($('#direction-results')) {
-            renderDirectionGroups(directionDetails);
           }
         }
         if (eventType === 'workflow_done') {
           const dirs = payload.directions || directionDetails;
-          renderDirections(dirs);
-          if ($('#direction-results')) renderDirectionGroups(dirs);
+          maybeEmitMilestones();
+          renderDirections(Array.isArray(dirs) ? dirs : directionDetails);
+          if ($('#direction-results')) renderDirectionGroups(Array.isArray(dirs) ? dirs : directionDetails);
           updateBibtex(payload.bibtex_text || combinedBibtexParts.join('\n\n'), payload.count || combinedCount);
           ensureAiStatusFinal({ articles: payload.articles || combinedArticles });
           showError('');
           stopTimer(true);
+          appendStatus({ step: '自动工作流', status: 'success', detail: '已完成' });
         }
       });
     }
 
     if (buffer.trim()) {
       const { eventType, payload } = parseSse(buffer.trim());
-      if (eventType === 'status' && payload.entry) appendStatus(payload.entry);
+      if (eventType === 'status' && payload.entry) {
+        const step = String(payload.entry.step || '');
+        if (!step.startsWith('[')) appendStatus(payload.entry);
+      }
       if (eventType === 'error' && payload.message) {
         showError(payload.message);
         stopTimer(false, payload.message);
       }
       if (eventType === 'workflow_done') {
         const dirs = payload.directions || directionDetails;
-        renderDirections(dirs);
-        if ($('#direction-results')) renderDirectionGroups(dirs);
+        renderDirections(Array.isArray(dirs) ? dirs : directionDetails);
+        if ($('#direction-results')) renderDirectionGroups(Array.isArray(dirs) ? dirs : directionDetails);
         updateBibtex(payload.bibtex_text || combinedBibtexParts.join('\n\n'), payload.count || combinedCount);
         ensureAiStatusFinal({ articles: payload.articles || combinedArticles });
         showError('');
         stopTimer(true);
+        appendStatus({ step: '自动工作流', status: 'success', detail: '已完成' });
       }
     }
   } catch (err) {
