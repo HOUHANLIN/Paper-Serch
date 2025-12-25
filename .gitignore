@@ -27,6 +27,11 @@ env/
 # 自动生成的参考文献（BibTeX）文件
 *.bib
 
+# SQLite 本地数据库
+*.db
+*.db-shm
+*.db-wal
+
 # 本地环境配置文件（避免提交敏感信息）
 .env
 .env.local

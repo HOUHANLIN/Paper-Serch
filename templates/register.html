@@ -1,0 +1,43 @@
+{% extends "_base.html" %}
+
+{% block title %}Paper-Serch · 注册{% endblock %}
+
+{% block content %}
+  <section class="container" style="max-width: 720px;">
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <p class="card-kicker">ACCOUNT</p>
+          <h2>注册</h2>
+        </div>
+      </div>
+
+      {% if error %}
+        <div class="alert error" style="margin-bottom: 12px;">{{ error }}</div>
+      {% endif %}
+
+	      <form method="post" class="stack">
+	        <input type="hidden" name="next" value="{{ next_url or '' }}" />
+	        <div class="field">
+	          <label for="email">邮箱</label>
+	          <input id="email" name="email" type="email" autocomplete="email" required />
+	        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="password">密码</label>
+            <input id="password" name="password" type="password" autocomplete="new-password" required />
+          </div>
+          <div class="field">
+            <label for="password2">确认密码</label>
+            <input id="password2" name="password2" type="password" autocomplete="new-password" required />
+          </div>
+        </div>
+        <p class="muted" style="margin: 0;">注册后默认赠送 {{ initial_credits }} 次工作流额度。</p>
+        <div class="actions">
+          <button class="btn primary" type="submit">创建账号</button>
+          <a class="btn ghost" href="{{ url_for('login') }}">已有账号？去登录</a>
+        </div>
+      </form>
+    </div>
+  </section>
+{% endblock %}

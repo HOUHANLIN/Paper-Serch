@@ -138,6 +138,22 @@ a:hover {
   background: var(--surface-soft);
 }
 
+.linklike {
+  appearance: none;
+  background: none;
+  border: 1px solid transparent;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.linklike:hover {
+  border-color: var(--border);
+  background: var(--surface-soft);
+}
+
 .page {
   padding: 18px 0 42px;
 }
@@ -764,6 +780,19 @@ textarea {
   background: transparent;
   border: 1px solid var(--border);
   color: var(--text);
+}
+
+.alert {
+  border: 1px solid var(--border);
+  background: var(--surface-soft);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.alert.error {
+  border-color: color-mix(in srgb, var(--error) 35%, var(--border));
+  background: color-mix(in srgb, var(--error) 10%, var(--surface-soft));
+  color: color-mix(in srgb, var(--error) 85%, var(--text));
 }
 
 .generator {

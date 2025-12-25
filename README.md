@@ -1,6 +1,6 @@
 # Paper-Serch
 
-Paper-Serch 是一个基于 Flask 的轻量级 Web 应用，用于快速检索文献并生成 BibTeX，支持可选的 AI 中文摘要与使用建议。项目默认本地运行，无需容器化。
+Paper-Serch 是一个基于 Flask 的轻量级 Web 应用，用于快速检索文献并生成 BibTeX，支持可选的 AI 中文摘要与使用建议。
 
 ## 特性
 - Web 端一站式完成检索、进度查看与 BibTeX 导出。
@@ -27,10 +27,11 @@ Paper-Serch 是一个基于 Flask 的轻量级 Web 应用，用于快速检索�
    deactivate
    ```
 
-> 项目仅依赖 `uv` 管理环境与依赖，不再提供 Docker 相关文件。
-
 ## 可选配置
 在项目根目录创建 `.env`（可参考 `.env.example`），按需填写：
+- `SECRET_KEY`（Flask session 签名密钥；建议生产环境设置）
+- `PAPER_SERCH_DB_PATH`（SQLite 数据库路径；默认 `paper_serch.db`）
+- `INITIAL_CREDITS`（注册默认赠送工作流次数；默认 10）
 - `GEMINI_API_KEY` / `GEMINI_MODEL` / `GEMINI_TEMPERATURE`
 - `OPENAI_API_KEY` / `OPENAI_BASE_URL` / `OPENAI_MODEL` / `OPENAI_TEMPERATURE`
 - `PUBMED_MAX_CONCURRENT_REQUESTS`（默认 3，全局默认 PubMed 并发上限）

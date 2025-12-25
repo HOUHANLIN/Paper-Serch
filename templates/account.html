@@ -1,0 +1,49 @@
+{% extends "_base.html" %}
+
+{% block title %}Paper-Serch · 账户{% endblock %}
+
+{% block content %}
+  <section class="container" style="max-width: 900px;">
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <p class="card-kicker">ACCOUNT</p>
+          <h2>账户概览</h2>
+        </div>
+      </div>
+
+      <div class="stack">
+        <div class="field">
+          <label>当前用户</label>
+          <div class="muted">{{ current_user.email }}</div>
+        </div>
+        <div class="field">
+          <label>剩余次数</label>
+          <div class="muted">{{ credits_balance }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top: 16px;">
+      <div class="card-head">
+        <div>
+          <p class="card-kicker">LEDGER</p>
+          <h2>最近消费记录</h2>
+        </div>
+      </div>
+      {% if ledger and ledger|length %}
+        <div class="stack">
+          {% for row in ledger %}
+            <div class="muted">
+              {{ row.created_at }} · {{ row.entry_type }} · {{ row.units }} · {{ row.reason }}
+              {% if row.workflow_run_id %}· run={{ row.workflow_run_id }}{% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="muted">暂无记录。</div>
+      {% endif %}
+    </div>
+  </section>
+{% endblock %}
+
