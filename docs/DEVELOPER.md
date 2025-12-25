@@ -9,6 +9,7 @@
 
 ## 目录结构
 - `webapp.py`：Flask 入口，包含 API 路由与 SSE 推送逻辑。
+- `web_layer/`：Web 层拆分出的辅助逻辑（表单解析、流式检索、SSE 格式化）。
 - `templates/`：Jinja2 模板，`index.html` 为首页，`tutorial.html` 为新手教程。
 - `static/`：样式与前端脚本，`static/css/main.css` 定义统一配色与组件样式。
 - `paper_sources/`：文献来源接口与实现，注册表统一暴露数据源。

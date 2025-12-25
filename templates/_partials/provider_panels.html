@@ -1,0 +1,26 @@
+<div class="field-group">
+  <label for="ai_provider">AI 模型</label>
+  <select id="ai_provider" name="ai_provider">
+    <option value="openai" {% if form.ai_provider=='openai' or not form.ai_provider %}selected{% endif %}>OpenAI</option>
+    <option value="gemini" {% if form.ai_provider=='gemini' %}selected{% endif %}>Gemini</option>
+    <option value="ollama" {% if form.ai_provider=='ollama' %}selected{% endif %}>Ollama</option>
+  </select>
+</div>
+
+{% for provider_name in ['ollama', 'openai', 'gemini'] %}
+  <div class="provider-panel" data-provider="{{ provider_name }}">
+    {% if provider_name == 'ollama' %}
+      <div class="field-inline"><label for="ollama_api_key">API Key</label><input id="ollama_api_key" name="ollama_api_key" type="text" value="{{ form.ollama_api_key }}" placeholder="默认 ollama" /></div>
+      <div class="field-inline"><label for="ollama_base_url">Base URL</label><input id="ollama_base_url" name="ollama_base_url" type="text" value="{{ form.ollama_base_url }}" placeholder="默认 http://localhost:11434/v1" /></div>
+      <div class="field-inline"><label for="ollama_model">模型名称</label><input id="ollama_model" name="ollama_model" type="text" value="{{ form.ollama_model }}" placeholder="默认 llama3.1" /></div>
+    {% elif provider_name == 'openai' %}
+      <div class="field-inline"><label for="openai_api_key">API Key</label><input id="openai_api_key" name="openai_api_key" type="text" value="{{ form.openai_api_key }}" placeholder="留空读取环境变量" /></div>
+      <div class="field-inline"><label for="openai_base_url">Base URL</label><input id="openai_base_url" name="openai_base_url" type="text" value="{{ form.openai_base_url }}" placeholder="兼容自托管接口" /></div>
+      <div class="field-inline"><label for="openai_model">模型名称</label><input id="openai_model" name="openai_model" type="text" value="{{ form.openai_model }}" placeholder="默认 gpt-4o-mini" /></div>
+    {% elif provider_name == 'gemini' %}
+      <div class="field-inline"><label for="gemini_api_key">API Key</label><input id="gemini_api_key" name="gemini_api_key" type="text" value="{{ form.gemini_api_key }}" placeholder="留空读取环境变量" /></div>
+      <div class="field-inline"><label for="gemini_model">模型名称</label><input id="gemini_model" name="gemini_model" type="text" value="{{ form.gemini_model }}" placeholder="默认 gemini-2.5-flash" /></div>
+    {% endif %}
+  </div>
+{% endfor %}
+

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <title>{% block title %}Paper-Serch{% endblock %}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script>
+      (() => {
+        const saved = localStorage.getItem('ps-theme');
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        document.documentElement.dataset.theme = saved || (prefersDark ? 'dark' : 'light');
+      })();
+    </script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}" />
+    {% block head %}{% endblock %}
+  </head>
+  <body>
+    {% include "_partials/site_header.html" %}
+
+    <main class="page">
+      {% block content %}{% endblock %}
+    </main>
+
+    <script>
+      window.sourceDefaults = {{ source_defaults | default({}) | tojson }};
+      window.initialStatusLog = {{ status_log | default([]) | tojson }};
+    </script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% block scripts %}{% endblock %}
+  </body>
+</html>
+

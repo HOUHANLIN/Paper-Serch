@@ -45,6 +45,7 @@ Paper-Serch 是一个基于 Flask 的轻量级 Web 应用，用于快速检索�
 
 ## 目录速览
 - `webapp.py`：Flask 入口及 API。
+- `web_layer/`：Web 层辅助模块（表单解析、SSE/流式检索封装）。
 - `templates/`：页面模板（首页与新手教程）。
 - `static/`：样式与前端脚本。
 - `paper_sources/`：文献源实现与注册表。

@@ -1,0 +1,30 @@
+{% set placeholder_detail = placeholder_detail if placeholder_detail is defined and placeholder_detail else '提交后在此显示实时进度。' %}
+<div class="hero-status-module glass" id="hero-status-card">
+  <div class="status-header-row">
+    <div class="card-kicker">SYSTEM STATUS</div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div class="status-indicator" id="hero-status-indicator">
+        <span class="dot"></span>
+        <span id="hero-state-text">准备就绪</span>
+        <span class="muted" id="hero-elapsed-text" style="font-size: 12px; margin-left: 4px;">00:00</span>
+        <span class="muted" id="hero-progress-text" style="font-size: 12px; margin-left: 6px;">0/4</span>
+      </div>
+      <button class="status-toggle-btn" onclick="toggleStatusModule()" title="展开/收起详情">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+          stroke-linecap="round" stroke-linejoin="round">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+    </div>
+  </div>
+  <ul class="hero-status-list" id="status-list">
+    <li class="status-item" id="status-placeholder">
+      <span class="status-icon pending">…</span>
+      <div>
+        <strong>等待开始</strong>
+        <p class="muted">{{ placeholder_detail }}</p>
+      </div>
+    </li>
+  </ul>
+</div>
+

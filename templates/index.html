@@ -1,286 +1,124 @@
-<!doctype html>
-<html lang="zh-CN" data-theme="light">
+{% extends "_base.html" %}
 
-<head>
-  <meta charset="utf-8" />
-  <title>Paper-Serch · 文献检索与 BibTeX 导出</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <script>
-    (() => {
-      const saved = localStorage.getItem('ps-theme');
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      document.documentElement.dataset.theme = saved || (prefersDark ? 'dark' : 'light');
-    })();
-  </script>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}" />
-</head>
+{% block title %}Paper-Serch · 文献检索与 BibTeX 导出{% endblock %}
 
-<body>
-  <header class="site-header">
-    <div class="container header-inner">
-      <a href="{{ url_for('index') }}" class="brand-mark">
-        <span class="dot"></span>
-        <div>
-          <div class="brand-sub">Paper-Serch</div>
-          <div class="brand-title">Literature &amp; AI summaries</div>
-        </div>
-      </a>
-      <nav class="nav-links">
-        <a href="{{ url_for('index') }}" aria-current="page">首页</a>
-        <a href="{{ url_for('workflow') }}">自动工作流</a>
-        <a href="{{ url_for('tutorial') }}">使用教程</a>
-      </nav>
+{% block content %}
+  <section class="hero container">
+    <div class="hero-text">
+      <p class="eyebrow">温暖简约 · 日夜双模</p>
+      <h1>轻松检索并整理你的文献</h1>
+      <p class="lede">紧凑的界面与柔和配色，快速选择模型与数据源，随时导出 BibTeX。</p>
     </div>
-  </header>
+    {% set placeholder_detail = '提交后在此显示实时进度。' %}
+    {% include "_partials/status_module.html" %}
+  </section>
 
-  <main class="page">
-    {% set selected_provider = (ai_providers | selectattr('name', 'equalto', form.ai_provider) | list | first) %}
-    <section class="hero container">
-      <div class="hero-text">
-        <p class="eyebrow">温暖简约 · 日夜双模</p>
-        <h1>轻松检索并整理你的文献</h1>
-        <p class="lede">紧凑的界面与柔和配色，快速选择模型与数据源，随时导出 BibTeX。</p>
-      </div>
-      <div class="hero-status-module glass" id="hero-status-card">
-        <div class="status-header-row">
-          <div class="card-kicker">SYSTEM STATUS</div>
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <div class="status-indicator" id="hero-status-indicator">
-              <span class="dot"></span>
-              <span id="hero-state-text">准备就绪</span>
-              <span class="muted" id="hero-elapsed-text" style="font-size: 12px; margin-left: 4px;">00:00</span>
-              <span class="muted" id="hero-progress-text" style="font-size: 12px; margin-left: 6px;">0/4</span>
-            </div>
-            <button class="status-toggle-btn" onclick="toggleStatusModule()" title="展开/收起详情">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
-                stroke-linecap="round" stroke-linejoin="round">
-                <path d="M6 9l6 6 6-6" />
-              </svg>
-            </button>
+  <form id="search-form" method="post" class="container workflow-layout">
+    <aside class="workflow-settings stack">
+      <details class="card settings-collapsible" open>
+        <summary class="card-head">
+          <div>
+            <p class="card-kicker">CONFIGURATION</p>
+            <h2>配置与工具</h2>
           </div>
-        </div>
-        <ul class="hero-status-list" id="status-list">
-          <li class="status-item" id="status-placeholder">
-            <span class="status-icon pending">…</span>
-            <div>
-              <strong>等待开始</strong>
-              <p class="muted">提交后在此显示实时进度。</p>
-            </div>
-          </li>
-        </ul>
-      </div>
-    </section>
+        </summary>
 
-    <form id="search-form" method="post" class="container workflow-layout">
-      <!-- Configuration Sidebar -->
-      <aside class="workflow-settings stack">
-        <details class="card settings-collapsible" open>
-          <summary class="card-head">
-            <div>
-              <p class="card-kicker">CONFIGURATION</p>
-              <h2>配置与工具</h2>
-            </div>
-          </summary>
+        <div class="settings-content stack">
+          {% include "_partials/provider_panels.html" %}
 
-          <div class="settings-content stack">
-            <div class="field-group">
-              <label for="ai_provider">AI 模型</label>
-              <select id="ai_provider" name="ai_provider">
-                <option value="openai" {% if form.ai_provider=='openai' or not form.ai_provider %}selected{% endif %}>
-                  OpenAI</option>
-                <option value="gemini" {% if form.ai_provider=='gemini' %}selected{% endif %}>Gemini</option>
-                <option value="ollama" {% if form.ai_provider=='ollama' %}selected{% endif %}>
-                  Ollama</option>
+          <hr class="separator" />
+
+          <div class="field-row">
+            <div class="field">
+              <label for="source">数据源</label>
+              <select id="source" name="source">
+                {% for source in sources %}
+                  <option value="{{ source.name }}" {% if form.source==source.name %}selected{% endif %}>{{ source.display_name }}</option>
+                {% endfor %}
               </select>
             </div>
-
-            {% for provider_name in ['ollama', 'openai', 'gemini'] %}
-            <div class="provider-panel" data-provider="{{ provider_name }}">
-              {% if provider_name == 'ollama' %}
-              <div class="field-inline"><label for="ollama_api_key">API Key</label><input id="ollama_api_key"
-                  name="ollama_api_key" type="text" value="{{ form.ollama_api_key }}" placeholder="默认 ollama" /></div>
-              <div class="field-inline"><label for="ollama_base_url">Base URL</label><input id="ollama_base_url"
-                  name="ollama_base_url" type="text" value="{{ form.ollama_base_url }}"
-                  placeholder="默认 http://localhost:11434/v1" /></div>
-              <div class="field-inline"><label for="ollama_model">模型名称</label><input id="ollama_model"
-                  name="ollama_model" type="text" value="{{ form.ollama_model }}" placeholder="默认 llama3.1" /></div>
-              {% elif provider_name == 'openai' %}
-              <div class="field-inline"><label for="openai_api_key">API Key</label><input id="openai_api_key"
-                  name="openai_api_key" type="text" value="{{ form.openai_api_key }}" /></div>
-              <div class="field-inline"><label for="openai_base_url">Base URL</label><input id="openai_base_url"
-                  name="openai_base_url" type="text" value="{{ form.openai_base_url }}" /></div>
-              <div class="field-inline"><label for="openai_model">模型名称</label><input id="openai_model"
-                  name="openai_model" type="text" value="{{ form.openai_model }}" placeholder="默认 gpt-4o-mini" /></div>
-              {% elif provider_name == 'gemini' %}
-              <div class="field-inline"><label for="gemini_api_key">API Key</label><input id="gemini_api_key"
-                  name="gemini_api_key" type="text" value="{{ form.gemini_api_key }}" /></div>
-              <div class="field-inline"><label for="gemini_model">模型名称</label><input id="gemini_model"
-                  name="gemini_model" type="text" value="{{ form.gemini_model }}" placeholder="默认 gemini-2.5-flash" />
-              </div>
-              {% endif %}
-            </div>
-            {% endfor %}
-
-            <hr class="separator" />
-
-            <div class="field-row">
-              <div class="field">
-                <label for="source">数据源</label>
-                <select id="source" name="source">
-                  {% for source in sources %}
-                  <option value="{{ source.name }}" {% if form.source==source.name %}selected{% endif %}>{{
-                    source.display_name }}</option>
-                  {% endfor %}
-                </select>
-              </div>
-              <div class="field">
-                <label for="years">年份</label>
-                <input id="years" name="years" type="number" min="1" max="50" value="{{ form.years }}" />
-              </div>
-            </div>
-
             <div class="field">
-              <label for="max_results">最大条数</label>
-              <input id="max_results" name="max_results" type="number" min="1" max="200"
-                value="{{ form.max_results }}" />
-            </div>
-
-            <div class="field">
-              <label class="switch">
-                <input type="checkbox" id="toggle-contact" />
-                <span>高级参数</span>
-              </label>
-            </div>
-
-            <div id="contact-fields" style="display:none;" class="stack">
-              <div class="field"><label for="email">联系邮箱</label><input id="email" name="email" type="text"
-                  value="{{ form.email }}" /></div>
-              <div class="field"><label for="api_key">API Key</label><input id="api_key" name="api_key" type="text"
-                  value="{{ form.api_key }}" /></div>
+              <label for="years">年份</label>
+              <input id="years" name="years" type="number" min="1" max="50" value="{{ form.years }}" />
             </div>
           </div>
-        </details>
-      </aside>
 
-      <!-- Main Workspace Area -->
-      <div class="workflow-main stack">
-        <div class="card workspace-card">
-          <div class="card-head">
-            <div>
-              <p class="card-kicker">SEARCH</p>
-              <h2>文献检索</h2>
-            </div>
-          </div>
           <div class="field">
-            <textarea id="query" name="query" placeholder="输入 PubMed 检索式..."
-              class="large-input">{{ form.query }}</textarea>
+            <label for="max_results">最大条数</label>
+            <input id="max_results" name="max_results" type="number" min="1" max="200" value="{{ form.max_results }}" />
           </div>
 
-          <div class="ai-assist-section">
-            <details class="subtle-details">
-              <summary>需要 AI 协助生成检索式？</summary>
-              <div class="stack pt-10">
-                <label for="intent" class="muted">用自然语言描述需求</label>
-                <textarea id="intent" name="intent" placeholder="例如：检索最近 5 年关于肺癌免疫治疗的 Meta 分析..."></textarea>
-                <div class="generator">
-                  <button class="btn ghost" id="btn-generate-query" type="button">AI 生成检索式</button>
-                  <div class="generator-preview" id="generator-preview"></div>
-                  <div class="generator-actions" id="generator-actions">
-                    <button class="btn subtle" id="btn-apply-query" type="button">应用到检索式</button>
-                    <span id="generator-message" class="muted">生成的检索式会显示在这里。</span>
-                  </div>
+          <div class="field">
+            <label class="switch">
+              <input type="checkbox" id="toggle-contact" />
+              <span>高级参数</span>
+            </label>
+          </div>
+
+          <div id="contact-fields" style="display:none;" class="stack">
+            <div class="field"><label for="email">联系邮箱</label><input id="email" name="email" type="text" value="{{ form.email }}" /></div>
+            <div class="field"><label for="api_key">API Key</label><input id="api_key" name="api_key" type="text" value="{{ form.api_key }}" /></div>
+          </div>
+        </div>
+      </details>
+    </aside>
+
+    <div class="workflow-main stack">
+      <div class="card workspace-card">
+        <div class="card-head">
+          <div>
+            <p class="card-kicker">SEARCH</p>
+            <h2>文献检索</h2>
+          </div>
+        </div>
+        <div class="field">
+          <textarea id="query" name="query" placeholder="输入 PubMed 检索式..." class="large-input">{{ form.query }}</textarea>
+        </div>
+
+        <div class="ai-assist-section">
+          <details class="subtle-details">
+            <summary>需要 AI 协助生成检索式？</summary>
+            <div class="stack pt-10">
+              <label for="intent" class="muted">用自然语言描述需求</label>
+              <textarea id="intent" name="intent" placeholder="例如：检索最近 5 年关于肺癌免疫治疗的 Meta 分析..."></textarea>
+              <div class="generator">
+                <button class="btn ghost" id="btn-generate-query" type="button">AI 生成检索式</button>
+                <div class="generator-preview" id="generator-preview"></div>
+                <div class="generator-actions" id="generator-actions">
+                  <button class="btn subtle" id="btn-apply-query" type="button">应用到检索式</button>
+                  <span id="generator-message" class="muted">生成的检索式会显示在这里。</span>
                 </div>
               </div>
-            </details>
-          </div>
-
-          <div class="generator-actions mt-20">
-            <button class="btn primary large" id="submit-btn" type="submit">开始检索并生成 BibTeX</button>
-            <input id="output" name="output" type="hidden" value="{{ form.output }}" />
-          </div>
+            </div>
+          </details>
         </div>
 
-        <div class="card">
-          <div class="card-head">
-            <div>
-              <p class="card-kicker">PAPERS</p>
-              <h2>文献列表</h2>
-            </div>
-          </div>
-          <div id="article-container" class="article-list">
-            {% if articles %}
-            {% for article in articles %}
-            <article class="paper" id="paper-{{ article.pmid or loop.index }}">
-              <header class="paper-head">
-                <h3>
-                  {% if article.url %}
-                  <a href="{{ article.url }}" target="_blank" rel="noreferrer">{{ article.title }}</a>
-                  {% else %}
-                  {{ article.title }}
-                  {% endif %}
-                </h3>
-                <div class="meta">{{ article.authors }} · {{ article.journal }} · {{ article.year }} {% if article.pmid
-                  %}<span class="badge">PMID: {{ article.pmid }}</span>{% endif %}</div>
-              </header>
-
-              <div class="paper-details visible">
-                {% if article.summary_zh %}
-                <div class="ai-content-box">
-                  <div class="card-kicker">✨ 全文概括</div>
-                  <p class="paper-summary">{{ article.summary_zh }}</p>
-                </div>
-                {% endif %}
-                {% if article.usage_zh %}
-                <div class="ai-content-box usage">
-                  <div class="card-kicker">🎯 引用建议</div>
-                  <p class="paper-summary">{{ article.usage_zh }}</p>
-                </div>
-                {% endif %}
-                {% if not article.summary_zh and not article.usage_zh %}
-                <p class="muted">暂无 AI 总结</p>
-                {% endif %}
-              </div>
-            </article>
-            {% endfor %}
-            {% else %}
-            <div class="muted">提交后将在此展示检索到的文献列表。</div>
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="card bibtex-consolidated">
-          <div class="card-head">
-            <div>
-              <p class="card-kicker">OUTPUT</p>
-              <h2>BibTeX 结果</h2>
-            </div>
-            <div class="actions-right">
-              <span class="muted" id="result-count">共 {{ count }} 条</span>
-              <button class="btn ghost btn-sm" type="button" id="copy-btn" {% if not bibtex_text %}disabled{% endif
-                %}>复制</button>
-              <button class="btn subtle btn-sm export-btn" type="submit" formaction="/download" {% if not bibtex_text
-                %}disabled{% endif %}>导出文件</button>
-            </div>
-          </div>
-          <textarea id="bibtex-output" class="bibtex-output mini" readonly>{{ bibtex_text }}</textarea>
-          <textarea id="bibtex-hidden" form="search-form" name="bibtex_text" hidden>{{ bibtex_text }}</textarea>
+        <div class="generator-actions mt-20">
+          <button class="btn primary large" id="submit-btn" type="submit">开始检索并生成 BibTeX</button>
+          <input id="output" name="output" type="hidden" value="{{ form.output }}" />
         </div>
       </div>
-    </form>
 
-    <footer class="footer">
-      <div class="container">
-        <p class="muted">LOCAL RESEARCH UTILITY</p>
-        <p>界面仅作为本地学术辅助工具使用：不会上传你的 API Key 或检索式到除必要接口以外的任何服务。</p>
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <p class="card-kicker">PAPERS</p>
+            <h2>文献列表</h2>
+          </div>
+        </div>
+        {% include "_partials/article_list.html" %}
       </div>
-    </footer>
-  </main>
 
-  <script>
-    window.sourceDefaults = {{ source_defaults | tojson }};
-    window.initialStatusLog = {{ status_log | tojson }};
-  </script>
-  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
-</body>
+      {% set bibtex_form_id = 'search-form' %}
+      {% include "_partials/bibtex_card.html" %}
+    </div>
+  </form>
 
-</html>
+  <footer class="footer">
+    <div class="container">
+      <p class="muted">LOCAL RESEARCH UTILITY</p>
+      <p>界面仅作为本地学术辅助工具使用：不会上传你的 API Key 或检索式到除必要接口以外的任何服务。</p>
+    </div>
+  </footer>
+{% endblock %}
+

@@ -1,0 +1,44 @@
+{% set show_direction_badge = show_direction_badge if show_direction_badge is defined else false %}
+<div id="article-container" class="article-list">
+  {% if articles %}
+    {% for article in articles %}
+      <article class="paper" id="paper-{{ article.pmid or loop.index }}">
+        <header class="paper-head">
+          <h3>
+            {% if article.url %}
+              <a href="{{ article.url }}" target="_blank" rel="noreferrer">{{ article.title }}</a>
+            {% else %}
+              {{ article.title }}
+            {% endif %}
+          </h3>
+          <div class="meta">
+            {{ article.authors }} · {{ article.journal }} · {{ article.year }}
+            {% if article.pmid %}<span class="badge">PMID: {{ article.pmid }}</span>{% endif %}
+            {% if show_direction_badge and article.direction %}<span class="badge muted">{{ article.direction }}</span>{% endif %}
+          </div>
+        </header>
+
+        <div class="paper-details visible">
+          {% if article.summary_zh %}
+            <div class="ai-content-box">
+              <div class="card-kicker">✨ 全文概括</div>
+              <p class="paper-summary">{{ article.summary_zh }}</p>
+            </div>
+          {% endif %}
+          {% if article.usage_zh %}
+            <div class="ai-content-box usage">
+              <div class="card-kicker">🎯 引用建议</div>
+              <p class="paper-summary">{{ article.usage_zh }}</p>
+            </div>
+          {% endif %}
+          {% if not article.summary_zh and not article.usage_zh %}
+            <p class="muted">暂无 AI 总结</p>
+          {% endif %}
+        </div>
+      </article>
+    {% endfor %}
+  {% else %}
+    <div class="muted">提交后将在此展示检索到的文献列表。</div>
+  {% endif %}
+</div>
+

@@ -1,0 +1,17 @@
+<header class="site-header">
+  <div class="container header-inner">
+    <a href="{{ url_for('index') }}" class="brand-mark">
+      <span class="dot"></span>
+      <div>
+        <div class="brand-sub">Paper-Serch</div>
+        <div class="brand-title">Literature &amp; AI summaries</div>
+      </div>
+    </a>
+    <nav class="nav-links">
+      <a href="{{ url_for('index') }}" {% if current_page == 'index' %}aria-current="page"{% endif %}>首页</a>
+      <a href="{{ url_for('workflow') }}" {% if current_page == 'workflow' %}aria-current="page"{% endif %}>自动工作流</a>
+      <a href="{{ url_for('tutorial') }}" {% if current_page == 'tutorial' %}aria-current="page"{% endif %}>使用教程</a>
+    </nav>
+  </div>
+</header>
+

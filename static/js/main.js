@@ -2,6 +2,21 @@ let generatedQuery = '';
 let runtimeTimer = null;
 let runtimeStart = null;
 const BASE_STATUS_STEPS = ['准备检索', '检索中', 'AI 摘要', 'BibTeX 生成'];
+const STATUS_STEP_ORDER = [
+  '自动工作流',
+  '提取方向',
+  '检索方向',
+  '生成检索式',
+  '检索重试',
+  '准备检索',
+  '检索中',
+  '检索完成',
+  'AI 摘要',
+  'BibTeX 生成',
+];
+const DYNAMIC_STEP_BASE_RANK = STATUS_STEP_ORDER.length + 100;
+const dynamicStepRanks = new Map();
+let dynamicRankCounter = 0;
 
 function $(selector) {
   return document.querySelector(selector);
@@ -13,8 +28,15 @@ function applyTheme(theme) {
 
 function initTheme() {
   const media = window.matchMedia('(prefers-color-scheme: dark)');
-  applyTheme(media.matches ? 'dark' : 'light');
-  media.addEventListener('change', (evt) => applyTheme(evt.matches ? 'dark' : 'light'));
+  const applyPreferred = () => {
+    const saved = localStorage.getItem('ps-theme');
+    applyTheme(saved || (media.matches ? 'dark' : 'light'));
+  };
+  applyPreferred();
+  media.addEventListener('change', (evt) => {
+    if (localStorage.getItem('ps-theme')) return;
+    applyTheme(evt.matches ? 'dark' : 'light');
+  });
 }
 
 function showError(message) {
@@ -102,6 +124,30 @@ function escapeAttrValue(value) {
   return String(value || '').replace(/"/g, '\\"');
 }
 
+function normalizeStepName(step) {
+  return String(step || '').replace(/^\[[^\]]+\]\s*/, '');
+}
+
+function getStepRank(step) {
+  const full = String(step || '');
+  const normalized = normalizeStepName(full);
+  const index = STATUS_STEP_ORDER.indexOf(normalized);
+  if (index >= 0) return index;
+  if (dynamicStepRanks.has(full)) return dynamicStepRanks.get(full);
+  const rank = DYNAMIC_STEP_BASE_RANK + dynamicRankCounter;
+  dynamicRankCounter += 1;
+  dynamicStepRanks.set(full, rank);
+  return rank;
+}
+
+function insertStatusItemOrdered(list, item) {
+  const rank = Number(item.dataset.rank || DYNAMIC_STEP_BASE_RANK);
+  const children = Array.from(list.querySelectorAll('.status-item'));
+  const before = children.find((child) => Number(child.dataset.rank || DYNAMIC_STEP_BASE_RANK) > rank);
+  if (before) list.insertBefore(item, before);
+  else list.appendChild(item);
+}
+
 function updateProgress() {
   const progressEl = $('#hero-progress-text');
   const list = $('#status-list');
@@ -154,6 +200,7 @@ function createStatus(entry) {
   const status = entry.status || 'pending';
   li.className = `status-item ${status}`;
   li.dataset.step = entry.step || '';
+  li.dataset.rank = String(getStepRank(entry.step || ''));
 
   const icon = document.createElement('span');
   icon.className = `status-icon ${status}`;
@@ -205,13 +252,13 @@ function appendStatus(entry) {
   // Find existing step or create new
   let item = list.querySelector(`li[data-step="${escapeAttrValue(entry.step)}"]`);
   if (!item) {
-    // If it's a sub-step or workflow direction, append it
     item = createStatus(entry);
-    list.appendChild(item);
+    insertStatusItemOrdered(list, item);
   } else {
     // Update existing
     const status = entry.status || 'pending';
     item.className = `status-item ${status}`;
+    item.dataset.rank = String(getStepRank(entry.step || item.dataset.step || ''));
     const icon = item.querySelector('.status-icon');
     if (icon) {
       icon.className = `status-icon ${status}`;
@@ -234,6 +281,27 @@ function appendStatus(entry) {
 
   // Scroll to active
   item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function ensureAiStatusFinal(payload) {
+  const list = $('#status-list');
+  if (!list) return;
+  const aiStep = 'AI 摘要';
+  const item = list.querySelector(`li[data-step="${escapeAttrValue(aiStep)}"]`);
+  if (!item) return;
+  if (item.classList.contains('success') || item.classList.contains('error')) return;
+
+  const articles = (payload && payload.articles) || [];
+  const hasAiContent = Array.isArray(articles) && articles.some((a) => {
+    const summary = (a && a.summary_zh) || '';
+    const usage = (a && a.usage_zh) || '';
+    return String(summary).trim() || String(usage).trim();
+  });
+  appendStatus({
+    step: aiStep,
+    status: 'success',
+    detail: hasAiContent ? 'AI 摘要已完成' : 'AI 摘要已完成（未生成内容或未启用）',
+  });
 }
 
 window.toggleStatusModule = function () {
@@ -440,6 +508,7 @@ async function streamSearch(event) {
           stopTimer(false, payload.message);
         }
         if (eventType === 'result') {
+          ensureAiStatusFinal(payload);
           updateBibtex(payload.bibtex_text, payload.count);
           renderArticles(payload.articles || []);
           stopTimer(true);
@@ -454,6 +523,7 @@ async function streamSearch(event) {
         stopTimer(false, payload.message);
       }
       if (eventType === 'result') {
+        ensureAiStatusFinal(payload);
         updateBibtex(payload.bibtex_text, payload.count);
         renderArticles(payload.articles || []);
         stopTimer(true);
@@ -604,6 +674,7 @@ async function runAutoWorkflow(event) {
     } else {
       renderArticles(data.articles || []);
     }
+    ensureAiStatusFinal({ articles: data.articles || [] });
     stopTimer(true);
   } catch (err) {
     console.error(err);

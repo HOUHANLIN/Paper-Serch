@@ -1,0 +1,18 @@
+{% set bibtex_form_id = bibtex_form_id if bibtex_form_id is defined and bibtex_form_id else '' %}
+{% set card_classes = card_classes if card_classes is defined and card_classes else 'card bibtex-consolidated' %}
+<div class="{{ card_classes }}">
+  <div class="card-head">
+    <div>
+      <p class="card-kicker">OUTPUT</p>
+      <h2>BibTeX 结果</h2>
+    </div>
+    <div class="actions-right">
+      <span class="muted" id="result-count">共 {{ count }} 条</span>
+      <button class="btn ghost btn-sm" type="button" id="copy-btn" {% if not bibtex_text %}disabled{% endif %}>复制</button>
+      <button class="btn subtle btn-sm export-btn" type="submit" formaction="/download" {% if not bibtex_text %}disabled{% endif %}>导出文件</button>
+    </div>
+  </div>
+  <textarea id="bibtex-output" class="bibtex-output mini" readonly>{{ bibtex_text }}</textarea>
+  <textarea id="bibtex-hidden" form="{{ bibtex_form_id }}" name="bibtex_text" hidden>{{ bibtex_text }}</textarea>
+</div>
+
