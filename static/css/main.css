@@ -1199,92 +1199,6 @@ textarea {
   font-weight: 700;
 }
 
-.tutorial-page {
-  padding: 22px 0 44px;
-  width: min(1100px, 94vw);
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-
-.headline-pill {
-  display: inline-flex;
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  font-weight: 700;
-  color: var(--primary-strong);
-}
-
-.headline-title {
-  margin: 6px 0 4px;
-  font-size: 32px;
-}
-
-.subtitle {
-  color: var(--muted);
-  max-width: 640px;
-}
-
-.tutorial-hero {
-  display: grid;
-  grid-template-columns: 1.1fr 0.9fr;
-  gap: 14px;
-  align-items: center;
-  padding: 14px 16px;
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  background: var(--surface);
-  box-shadow: var(--shadow);
-}
-
-.hero-chip {
-  padding: 8px 12px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--surface-soft);
-  font-weight: 700;
-}
-
-.tutorial-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 12px;
-}
-
-.tutorial-step {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.step-label {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 800;
-  color: var(--primary-strong);
-  background: var(--surface-soft);
-}
-
-.tutorial-step pre {
-  background: var(--surface-soft);
-  border: 1px solid var(--border);
-  padding: 10px;
-  border-radius: 10px;
-  overflow: auto;
-}
-
-.tutorial-step code {
-  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-}
-
 .direction-group {
   border: 1px solid var(--border);
   border-radius: 16px;
@@ -1342,8 +1256,7 @@ textarea {
   }
 
   .grid,
-  .hero,
-  .tutorial-hero {
+  .hero {
     grid-template-columns: 1fr;
     gap: 24px;
   }

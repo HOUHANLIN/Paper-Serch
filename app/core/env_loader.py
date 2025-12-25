@@ -27,3 +27,10 @@ def get_env_int(key: str, default: int) -> int:
         return int(raw) if raw is not None else default
     except ValueError:
         return default
+
+
+def get_env_flag(key: str, default: bool = False) -> bool:
+    raw = os.environ.get(key)
+    if raw is None:
+        return default
+    return str(raw).strip().lower() in {"1", "true", "yes", "on"}

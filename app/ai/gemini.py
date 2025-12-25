@@ -2,7 +2,7 @@ import os
 import sys
 from typing import Optional
 
-from paper_sources import ArticleInfo
+from app.sources import ArticleInfo
 
 from .base import AiProvider
 

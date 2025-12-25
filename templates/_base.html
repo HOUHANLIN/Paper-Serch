@@ -24,9 +24,10 @@
     <script>
       window.sourceDefaults = {{ source_defaults | default({}) | tojson }};
       window.initialStatusLog = {{ status_log | default([]) | tojson }};
+      window.appPermissions = { allow_ai_config: {{ 'true' if allow_ai_config else 'false' }} };
+      window.aiPresetDisplay = {{ ai_preset_display | default({}) | tojson }};
     </script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
     {% block scripts %}{% endblock %}
   </body>
 </html>
-

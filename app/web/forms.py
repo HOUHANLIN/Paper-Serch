@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import os
 import secrets
-from typing import Dict, Mapping, Tuple
+from typing import Dict, Mapping, Optional, Tuple
 
-from paper_sources.registry import list_sources
+from app.sources.registry import list_sources
 
 
 def get_default_years(source_name: str) -> int:
@@ -66,13 +66,26 @@ def parse_float(value: str, default_value: float) -> float:
         return default_value
 
 
-def resolve_form(form_data: Mapping[str, str]) -> Tuple[Dict[str, str], Dict[str, object]]:
+def resolve_form(
+    form_data: Mapping[str, str],
+    *,
+    allow_ai_customization: bool = True,
+    preset_ai_config: Optional[Dict[str, str]] = None,
+) -> Tuple[Dict[str, str], Dict[str, object]]:
     """返回渲染用的表单值以及用于搜索的解析结果。"""
+
+    preset_ai_config = preset_ai_config or {}
+
+    def _effective(raw: str, key: str) -> str:
+        base = (raw or "").strip()
+        if allow_ai_customization:
+            return base or str(preset_ai_config.get(key) or "")
+        return str(preset_ai_config.get(key) or "")
 
     source = (form_data.get("source") or default_source_name()).strip()
     defaults = get_source_defaults(source)
 
-    ai_provider = (form_data.get("ai_provider") or default_ai_provider_name()).strip()
+    ai_provider = _effective(form_data.get("ai_provider") or "", "ai_provider") or default_ai_provider_name()
     query = (form_data.get("query") or default_query(source)).strip()
     years_raw = (form_data.get("years") or "").strip()
     max_results_raw = (form_data.get("max_results") or "").strip()
@@ -86,10 +99,6 @@ def resolve_form(form_data: Mapping[str, str]) -> Tuple[Dict[str, str], Dict[str
     openai_base_url_raw = (form_data.get("openai_base_url") or "").strip()
     openai_model_raw = (form_data.get("openai_model") or "").strip()
     openai_temperature_raw = (form_data.get("openai_temperature") or "").strip()
-    ollama_api_key_raw = (form_data.get("ollama_api_key") or "").strip()
-    ollama_base_url_raw = (form_data.get("ollama_base_url") or "").strip()
-    ollama_model_raw = (form_data.get("ollama_model") or "").strip()
-    ollama_temperature_raw = (form_data.get("ollama_temperature") or "").strip()
 
     if email_raw:
         resolved_email = email_raw
@@ -110,17 +119,13 @@ def resolve_form(form_data: Mapping[str, str]) -> Tuple[Dict[str, str], Dict[str
         "email": resolved_email,
         "api_key": api_key_raw or str(defaults["api_key"]),
         "output": resolved_output,
-        "gemini_api_key": gemini_api_key_raw,
-        "gemini_model": gemini_model_raw,
-        "gemini_temperature": resolved_gemini_temperature,
-        "openai_api_key": openai_api_key_raw,
-        "openai_base_url": openai_base_url_raw,
-        "openai_model": openai_model_raw,
-        "openai_temperature": parse_float(openai_temperature_raw, 0.0),
-        "ollama_api_key": ollama_api_key_raw,
-        "ollama_base_url": ollama_base_url_raw,
-        "ollama_model": ollama_model_raw,
-        "ollama_temperature": parse_float(ollama_temperature_raw, 0.0),
+        "gemini_api_key": _effective(gemini_api_key_raw, "gemini_api_key"),
+        "gemini_model": _effective(gemini_model_raw, "gemini_model"),
+        "gemini_temperature": parse_float(_effective(gemini_temperature_raw, "gemini_temperature"), resolved_gemini_temperature),
+        "openai_api_key": _effective(openai_api_key_raw, "openai_api_key"),
+        "openai_base_url": _effective(openai_base_url_raw, "openai_base_url"),
+        "openai_model": _effective(openai_model_raw, "openai_model"),
+        "openai_temperature": parse_float(_effective(openai_temperature_raw, "openai_temperature"), 0.0),
     }
 
     form = {
@@ -139,11 +144,6 @@ def resolve_form(form_data: Mapping[str, str]) -> Tuple[Dict[str, str], Dict[str
         "openai_base_url": openai_base_url_raw,
         "openai_model": openai_model_raw,
         "openai_temperature": openai_temperature_raw,
-        "ollama_api_key": ollama_api_key_raw,
-        "ollama_base_url": ollama_base_url_raw,
-        "ollama_model": ollama_model_raw,
-        "ollama_temperature": ollama_temperature_raw,
     }
 
     return form, resolved
-

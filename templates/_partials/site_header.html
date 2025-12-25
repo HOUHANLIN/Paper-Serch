@@ -10,8 +10,10 @@
     <nav class="nav-links">
       <a href="{{ url_for('index') }}" {% if current_page == 'index' %}aria-current="page"{% endif %}>首页</a>
       <a href="{{ url_for('workflow') }}" {% if current_page == 'workflow' %}aria-current="page"{% endif %}>自动工作流</a>
-      <a href="{{ url_for('tutorial') }}" {% if current_page == 'tutorial' %}aria-current="page"{% endif %}>使用教程</a>
       {% if current_user %}
+        {% if current_user.is_admin %}
+          <a href="{{ url_for('admin_users') }}" {% if current_page == 'admin_users' %}aria-current="page"{% endif %}>管理面板</a>
+        {% endif %}
         <a href="{{ url_for('account') }}" {% if current_page == 'account' %}aria-current="page"{% endif %}>
           账户（{{ credits_balance }} 次）
         </a>
@@ -20,7 +22,9 @@
         </form>
       {% else %}
         <a href="{{ url_for('login') }}" {% if current_page == 'login' %}aria-current="page"{% endif %}>登录</a>
-        <a href="{{ url_for('register') }}" {% if current_page == 'register' %}aria-current="page"{% endif %}>注册</a>
+        {% if registration_open %}
+          <a href="{{ url_for('register') }}" {% if current_page == 'register' %}aria-current="page"{% endif %}>注册</a>
+        {% endif %}
       {% endif %}
     </nav>
   </div>

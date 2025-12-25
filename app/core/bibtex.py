@@ -1,7 +1,7 @@
 import textwrap
 from typing import Iterable, List, Tuple
 
-from paper_sources import ArticleInfo
+from app.sources import ArticleInfo
 
 
 def _escape_bibtex(text: str) -> str:

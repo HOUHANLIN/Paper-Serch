@@ -10,11 +10,10 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Tuple
 
-from ai_providers.gemini import GeminiProvider
-from ai_providers.ollama import OllamaProvider
-from ai_providers.openai_provider import OpenAIProvider
-from ai_providers.registry import get_provider
-from paper_sources import ArticleInfo
+from app.ai.gemini import GeminiProvider
+from app.ai.openai_provider import OpenAIProvider
+from app.ai.registry import get_provider
+from app.sources import ArticleInfo
 
 
 def normalize_annote(raw: str) -> Tuple[str, str, str]:
@@ -66,10 +65,6 @@ def apply_ai_summary(
     openai_base_url: str,
     openai_model: str,
     openai_temperature: float,
-    ollama_api_key: str,
-    ollama_base_url: str,
-    ollama_model: str,
-    ollama_temperature: float,
 ) -> str:
     """Apply AI summary generation to a list of articles."""
 
@@ -95,13 +90,6 @@ def apply_ai_summary(
                 base_url=openai_base_url or None,
                 model=openai_model or None,
                 temperature=openai_temperature,
-            )
-        if isinstance(provider, OllamaProvider):
-            provider.set_config(
-                api_key=ollama_api_key or None,
-                base_url=ollama_base_url or None,
-                model=ollama_model or None,
-                temperature=ollama_temperature,
             )
 
     applied = 0

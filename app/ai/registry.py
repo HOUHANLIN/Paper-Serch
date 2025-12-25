@@ -2,11 +2,10 @@ from typing import Dict, List, Optional, Type
 
 from .base import AiProvider
 from .gemini import GeminiProvider
-from .ollama import OllamaProvider
 from .openai_provider import OpenAIProvider
 
 
-_PROVIDER_ORDER: List[Type[AiProvider]] = [OllamaProvider, OpenAIProvider, GeminiProvider]
+_PROVIDER_ORDER: List[Type[AiProvider]] = [OpenAIProvider, GeminiProvider]
 _PROVIDER_TYPES: Dict[str, Type[AiProvider]] = {provider.name: provider for provider in _PROVIDER_ORDER}
 
 
