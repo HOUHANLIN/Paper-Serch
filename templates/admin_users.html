@@ -1,0 +1,122 @@
+{% extends "_base.html" %}
+
+{% block title %}Paper-Serch · 管理面板{% endblock %}
+
+{% block content %}
+  <section class="container" style="max-width: 1100px;">
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <p class="card-kicker">ADMIN</p>
+          <h2>账户管理</h2>
+        </div>
+      </div>
+      {% if error %}
+        <div class="alert error" style="margin-bottom: 12px;">{{ error }}</div>
+      {% endif %}
+      {% if message %}
+        <div class="alert success" style="margin-bottom: 12px;">{{ message }}</div>
+      {% endif %}
+      <p class="muted" style="margin: 0;">仅管理员可见：用于创建新账号、调整余额与切换管理员权限。</p>
+    </div>
+
+    <div class="card" style="margin-top: 16px;">
+      <div class="card-head">
+        <div>
+          <p class="card-kicker">CREATE</p>
+          <h2>创建新账号</h2>
+        </div>
+      </div>
+      <form method="post" class="stack">
+        <input type="hidden" name="action" value="create" />
+        <div class="field-row">
+          <div class="field">
+            <label for="new-email">邮箱</label>
+            <input id="new-email" name="email" type="email" required />
+          </div>
+          <div class="field">
+            <label for="new-password">初始密码</label>
+            <input id="new-password" name="password" type="password" minlength="6" required />
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="initial-credits">初始余额</label>
+            <input id="initial-credits" name="initial_credits" type="number" min="0" value="{{ initial_credits or 10 }}" />
+          </div>
+          <div class="field">
+            <label class="switch" for="is-admin">
+              <input id="is-admin" name="is_admin" type="checkbox" value="1" />
+              <span>授予管理员权限</span>
+            </label>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn primary" type="submit">创建账号</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="card" style="margin-top: 16px;">
+      <div class="card-head">
+        <div>
+          <p class="card-kicker">USERS</p>
+          <h2>用户列表</h2>
+        </div>
+      </div>
+      {% if users and users|length %}
+        <div class="stack">
+          {% for user in users %}
+            <div class="card" style="padding: 12px; margin: 0;">
+              <div class="field-row" style="align-items: center;">
+                <div class="field" style="flex: 2;">
+                  <label>邮箱</label>
+                  <div class="muted">{{ user.email }}</div>
+                </div>
+                <div class="field" style="flex: 1;">
+                  <label>余额</label>
+                  <div class="muted">{{ user.credits_balance }}</div>
+                </div>
+                <div class="field" style="flex: 1;">
+                  <label>管理员</label>
+                  <div class="muted">{{ '是' if user.is_admin else '否' }}</div>
+                </div>
+                <div class="field" style="flex: 1;">
+                  <label>创建时间</label>
+                  <div class="muted">{{ user.created_at }}</div>
+                </div>
+              </div>
+              <div class="field-row" style="margin-top: 8px; gap: 12px; align-items: flex-end;">
+                <form method="post" class="field-row" style="gap: 8px; flex: 2;">
+                  <input type="hidden" name="action" value="adjust" />
+                  <input type="hidden" name="user_id" value="{{ user.id }}" />
+                  <div class="field">
+                    <label for="delta-{{ user.id }}">调整余额（可为负数）</label>
+                    <input id="delta-{{ user.id }}" name="delta" type="number" step="1" value="0" />
+                  </div>
+                  <div class="field">
+                    <label for="reason-{{ user.id }}">备注</label>
+                    <input id="reason-{{ user.id }}" name="reason" type="text" placeholder="admin_adjustment" />
+                  </div>
+                  <div class="field" style="min-width: 120px;">
+                    <button class="btn subtle" type="submit">更新余额</button>
+                  </div>
+                </form>
+                <form method="post" class="field" style="flex: 1; text-align: right;">
+                  <input type="hidden" name="action" value="toggle_admin" />
+                  <input type="hidden" name="user_id" value="{{ user.id }}" />
+                  <input type="hidden" name="make_admin" value="{{ 0 if user.is_admin else 1 }}" />
+                  <button class="btn ghost" type="submit" {% if user.id == current_user.id and user.is_admin %}disabled{% endif %}>
+                    {% if user.is_admin %}移除管理员{% else %}设为管理员{% endif %}
+                  </button>
+                </form>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="muted">暂无用户。</div>
+      {% endif %}
+    </div>
+  </section>
+{% endblock %}

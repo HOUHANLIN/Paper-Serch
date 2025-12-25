@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   email TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
+  is_admin INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL
 );
 
@@ -80,6 +81,7 @@ def init_db(db_path: Optional[str] = None) -> None:
     conn = connect(db_path)
     try:
         conn.executescript(SCHEMA_SQL)
+        _ensure_admin_column(conn)
     finally:
         conn.close()
 
@@ -99,27 +101,43 @@ def transaction(conn: sqlite3.Connection) -> Iterator[sqlite3.Connection]:
 class User:
     id: int
     email: str
+    is_admin: bool
     created_at: str
 
 
 def get_user_by_id(conn: sqlite3.Connection, user_id: int) -> Optional[User]:
-    row = conn.execute("SELECT id, email, created_at FROM users WHERE id = ?", (user_id,)).fetchone()
+    row = conn.execute(
+        "SELECT id, email, is_admin, created_at FROM users WHERE id = ?",
+        (user_id,),
+    ).fetchone()
     if not row:
         return None
-    return User(id=int(row["id"]), email=str(row["email"]), created_at=str(row["created_at"]))
+    return User(
+        id=int(row["id"]),
+        email=str(row["email"]),
+        is_admin=bool(row["is_admin"]),
+        created_at=str(row["created_at"]),
+    )
 
 
 def get_user_by_email(conn: sqlite3.Connection, email: str) -> Optional[sqlite3.Row]:
     return conn.execute("SELECT * FROM users WHERE email = ?", (email.strip().lower(),)).fetchone()
 
 
-def create_user(conn: sqlite3.Connection, *, email: str, password_hash: str, initial_credits: int) -> User:
+def create_user(
+    conn: sqlite3.Connection,
+    *,
+    email: str,
+    password_hash: str,
+    initial_credits: int,
+    is_admin: bool = False,
+) -> User:
     email_clean = email.strip().lower()
     now = utc_now_iso()
     with transaction(conn):
         cur = conn.execute(
-            "INSERT INTO users(email, password_hash, created_at) VALUES (?, ?, ?)",
-            (email_clean, password_hash, now),
+            "INSERT INTO users(email, password_hash, is_admin, created_at) VALUES (?, ?, ?, ?)",
+            (email_clean, password_hash, 1 if is_admin else 0, now),
         )
         user_id = int(cur.lastrowid)
         conn.execute(
@@ -215,3 +233,64 @@ def list_recent_ledger(conn: sqlite3.Connection, user_id: int, limit: int = 20) 
         "FROM credit_ledger WHERE user_id = ? ORDER BY created_at DESC LIMIT ?",
         (user_id, int(limit)),
     ).fetchall()
+
+
+def list_users_with_balances(conn: sqlite3.Connection) -> Iterable[sqlite3.Row]:
+    return conn.execute(
+        "SELECT u.id, u.email, u.is_admin, u.created_at, COALESCE(a.credits_balance, 0) AS credits_balance "
+        "FROM users u LEFT JOIN accounts a ON a.user_id = u.id ORDER BY u.created_at DESC"
+    ).fetchall()
+
+
+def set_user_admin(conn: sqlite3.Connection, user_id: int, is_admin: bool) -> None:
+    conn.execute(
+        "UPDATE users SET is_admin = ? WHERE id = ?",
+        (1 if is_admin else 0, user_id),
+    )
+
+
+def adjust_credits(
+    conn: sqlite3.Connection,
+    *,
+    user_id: int,
+    delta: int,
+    reason: str = "admin_adjustment",
+    actor_user_id: Optional[int] = None,
+) -> int:
+    """调整用户余额，返回最新余额。"""
+    now = utc_now_iso()
+    with transaction(conn):
+        conn.execute(
+            "INSERT OR IGNORE INTO accounts(user_id, credits_balance, updated_at) VALUES (?, 0, ?)",
+            (user_id, now),
+        )
+        row = conn.execute("SELECT credits_balance FROM accounts WHERE user_id = ?", (user_id,)).fetchone()
+        balance = int(row["credits_balance"] or 0) if row else 0
+        new_balance = balance + int(delta)
+        if new_balance < 0:
+            raise RuntimeError("调整后余额不能为负数")
+        conn.execute(
+            "UPDATE accounts SET credits_balance = ?, updated_at = ? WHERE user_id = ?",
+            (new_balance, now, user_id),
+        )
+        conn.execute(
+            "INSERT INTO credit_ledger(id, user_id, entry_type, units, reason, idempotency_key, created_at, metadata_json) "
+            "VALUES (?, ?, ?, ?, ?, NULL, ?, ?)",
+            (
+                str(uuid.uuid4()),
+                user_id,
+                "credit" if delta >= 0 else "debit",
+                abs(int(delta)),
+                reason,
+                now,
+                json.dumps({"actor_user_id": actor_user_id}) if actor_user_id else None,
+            ),
+        )
+        return new_balance
+
+
+def _ensure_admin_column(conn: sqlite3.Connection) -> None:
+    info = conn.execute("PRAGMA table_info(users)").fetchall()
+    column_names = {str(row["name"]) for row in info}
+    if "is_admin" not in column_names:
+        conn.execute("ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0;")

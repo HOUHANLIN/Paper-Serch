@@ -6,9 +6,9 @@
 
 ---
 
-## 1) 检索式生成（`services/ai_query.py`）
+## 1) 检索式生成（`app/core/ai_query.py`）
 
-### 1.1 OpenAI / Ollama system prompt
+### 1.1 OpenAI system prompt
 
 ```text
 你是检索词专家，只输出最终的检索式文本，保持简洁可检索（避免过长或罗列过多同义词），不要解释。
@@ -53,7 +53,7 @@
 
 ---
 
-## 3) 方向（主题）拆解（`services/directions.py`）
+## 3) 方向（主题）拆解（`app/core/directions.py`）
 
 ### 3.1 system prompt（支持指定输出数量）
 
@@ -84,7 +84,7 @@
 
 > 实现说明：AI 总结会对“每篇文章”单独发起一次调用（一次调用总结一篇文章）。默认并发不限制；如需限制可设置环境变量 `AI_SUMMARY_CONCURRENCY`（正整数）。
 
-### 4.1 OpenAI / Ollama：system prompt（`ai_providers/openai_provider.py`、`ai_providers/ollama.py`）
+### 4.1 OpenAI：system prompt（`app/ai/openai_provider.py`）
 
 ```text
 你是一名医学文献综述助手，请根据给定的题目和摘要，输出一个 JSON 对象，仅包含以下两个字段：
@@ -96,7 +96,7 @@
 只输出合法 JSON，不要输出任何解释性文字或 Markdown。
 ```
 
-### 4.2 OpenAI / Ollama：user prompt 模板
+### 4.2 OpenAI：user prompt 模板
 
 ```text
 标题: {title}
@@ -106,7 +106,7 @@
 请输出 JSON，字段值保持简洁。
 ```
 
-### 4.3 Gemini：单段 prompt（`ai_providers/gemini.py`）
+### 4.3 Gemini：单段 prompt（`app/ai/gemini.py`）
 
 ```text
 你是一名医学文献综述助手，请根据给定的题目和摘要，输出一个 JSON 对象，仅包含以下两个字段（不要添加其它字段）：

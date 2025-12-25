@@ -11,8 +11,8 @@ from requests import Response
 from requests.exceptions import ConnectionError as RequestsConnectionError
 from requests.exceptions import RequestException, Timeout
 
-from paper_sources import ArticleInfo, PaperSource
-from services.keys import build_cite_key
+from app.sources import ArticleInfo, PaperSource
+from app.core.keys import build_cite_key
 
 
 EUTILS_BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"

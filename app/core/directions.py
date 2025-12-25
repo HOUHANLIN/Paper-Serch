@@ -4,9 +4,8 @@ from __future__ import annotations
 import re
 from typing import List, Tuple
 
-from ai_providers.gemini import GeminiProvider
-from ai_providers.ollama import OllamaProvider
-from ai_providers.openai_provider import OpenAIProvider
+from app.ai.gemini import GeminiProvider
+from app.ai.openai_provider import OpenAIProvider
 from openai import OpenAI
 
 
@@ -28,23 +27,6 @@ def _extract_directions_via_openai(
     client = OpenAI(api_key=api_key, base_url=base_url or None)
     completion = client.chat.completions.create(
         model=model or "gpt-4o-mini",
-        temperature=temperature,
-        messages=[
-            {"role": "system", "content": _build_system_direction_prompt(desired_count)},
-            {"role": "user", "content": prompt},
-        ],
-        max_tokens=480,
-    )
-    content = completion.choices[0].message.content if completion.choices else ""
-    return (content or "").strip()
-
-
-def _extract_directions_via_ollama(
-    prompt: str, api_key: str, base_url: str, model: str, temperature: float, desired_count: int | None
-) -> str:
-    client = OpenAI(api_key=api_key or "ollama", base_url=base_url or "http://localhost:11434/v1")
-    completion = client.chat.completions.create(
-        model=model or "llama3.1",
         temperature=temperature,
         messages=[
             {"role": "system", "content": _build_system_direction_prompt(desired_count)},
@@ -102,10 +84,6 @@ def extract_search_directions(
     openai_base_url: str,
     openai_model: str,
     openai_temperature: float,
-    ollama_api_key: str,
-    ollama_base_url: str,
-    ollama_model: str,
-    ollama_temperature: float,
     desired_count: int | None = None,
 ) -> Tuple[List[str], str]:
     """Use the configured AI provider to extract searchable directions."""
@@ -125,12 +103,6 @@ def extract_search_directions(
     resolved_gemini_api_key = (gemini_api_key or gemini_defaults.api_key or "").strip()
     resolved_gemini_model = (gemini_model or gemini_defaults.model or "").strip()
     resolved_gemini_temperature = gemini_temperature if gemini_temperature is not None else gemini_defaults.temperature
-
-    ollama_defaults = OllamaProvider()
-    resolved_ollama_api_key = (ollama_api_key or ollama_defaults.api_key or "ollama").strip()
-    resolved_ollama_base_url = (ollama_base_url or ollama_defaults.base_url or "").strip()
-    resolved_ollama_model = (ollama_model or ollama_defaults.model or "").strip()
-    resolved_ollama_temperature = ollama_temperature if ollama_temperature is not None else ollama_defaults.temperature
 
     raw_output = ""
     try:
@@ -153,15 +125,6 @@ def extract_search_directions(
                 resolved_gemini_api_key,
                 resolved_gemini_model,
                 resolved_gemini_temperature,
-                desired_count,
-            )
-        elif ai_provider == "ollama":
-            raw_output = _extract_directions_via_ollama(
-                prompt,
-                resolved_ollama_api_key,
-                resolved_ollama_base_url,
-                resolved_ollama_model,
-                resolved_ollama_temperature,
                 desired_count,
             )
         else:

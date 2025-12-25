@@ -2,6 +2,7 @@ let generatedQuery = '';
 let runtimeTimer = null;
 let runtimeStart = null;
 const BASE_STATUS_STEPS = ['准备检索', '检索中', 'AI 摘要', 'BibTeX 生成'];
+const ALLOW_AI_CONFIG = Boolean(window.appPermissions?.allow_ai_config);
 const STATUS_STEP_ORDER = [
   '自动工作流',
   '提取方向',
@@ -20,7 +21,7 @@ const STATUS_STEP_ORDER = [
 const DYNAMIC_STEP_BASE_RANK = STATUS_STEP_ORDER.length + 100;
 const dynamicStepRanks = new Map();
 let dynamicRankCounter = 0;
-const TOOLBAR_SETTINGS_KEY = 'ps-toolbar-settings-v1';
+const TOOLBAR_SETTINGS_KEY = 'ps-toolbar-settings-v2';
 const TOOLBAR_FIELDS = [
   { id: 'ai_provider', mode: 'value' },
   { id: 'source', mode: 'value' },
@@ -30,15 +31,14 @@ const TOOLBAR_FIELDS = [
   { id: 'toggle-contact', mode: 'checked' },
   { id: 'email', mode: 'value' },
   { id: 'api_key', mode: 'value' },
-  { id: 'openai_api_key', mode: 'value' },
-  { id: 'openai_base_url', mode: 'value' },
-  { id: 'openai_model', mode: 'value' },
-  { id: 'gemini_api_key', mode: 'value' },
-  { id: 'gemini_model', mode: 'value' },
-  { id: 'ollama_api_key', mode: 'value' },
-  { id: 'ollama_base_url', mode: 'value' },
-  { id: 'ollama_model', mode: 'value' },
 ];
+if (ALLOW_AI_CONFIG) {
+  TOOLBAR_FIELDS.push(
+    { id: 'openai_base_url', mode: 'value' },
+    { id: 'openai_model', mode: 'value' },
+    { id: 'gemini_model', mode: 'value' },
+  );
+}
 
 function $(selector) {
   return document.querySelector(selector);
@@ -201,6 +201,11 @@ function fillDatalist(datalistId, models) {
 }
 
 async function loadModelsForProvider(event) {
+  if (!ALLOW_AI_CONFIG) {
+    const message = event?.currentTarget?.closest('.model-actions')?.querySelector('.models-message') || null;
+    if (message) message.textContent = '仅管理员可查看模型列表';
+    return;
+  }
   const btn = event?.currentTarget || null;
   const provider = btn?.dataset?.provider || $('#ai_provider')?.value || '';
   const message = btn?.closest('.model-actions')?.querySelector('.models-message') || null;
@@ -213,8 +218,6 @@ async function loadModelsForProvider(event) {
       provider,
       openai_api_key: $('#openai_api_key')?.value || '',
       openai_base_url: $('#openai_base_url')?.value || '',
-      ollama_api_key: $('#ollama_api_key')?.value || '',
-      ollama_base_url: $('#ollama_base_url')?.value || '',
       gemini_api_key: $('#gemini_api_key')?.value || '',
     };
     const resp = await fetch('/api/list_models', {
@@ -230,7 +233,6 @@ async function loadModelsForProvider(event) {
     }
     const models = data.models || [];
     if (provider === 'openai') fillDatalist('openai-model-options', models);
-    if (provider === 'ollama') fillDatalist('ollama-model-options', models);
     if (provider === 'gemini') fillDatalist('gemini-model-options', models);
     if (message) message.textContent = data.message || `已获取 ${models.length} 个模型`;
   } catch (err) {
@@ -778,10 +780,6 @@ async function generateQuery() {
       openai_base_url: $('#openai_base_url')?.value || '',
       openai_model: $('#openai_model')?.value || '',
       openai_temperature: 0,
-      ollama_api_key: $('#ollama_api_key')?.value || '',
-      ollama_base_url: $('#ollama_base_url')?.value || '',
-      ollama_model: $('#ollama_model')?.value || '',
-      ollama_temperature: parseFloat($('#ollama_temperature')?.value || '0'),
     };
     const resp = await fetch('/api/generate_query', {
       method: 'POST',
@@ -855,10 +853,6 @@ async function runAutoWorkflow(event) {
     openai_base_url: $('#openai_base_url')?.value || '',
     openai_model: $('#openai_model')?.value || '',
     openai_temperature: 0,
-    ollama_api_key: $('#ollama_api_key')?.value || '',
-    ollama_base_url: $('#ollama_base_url')?.value || '',
-    ollama_model: $('#ollama_model')?.value || '',
-    ollama_temperature: parseFloat($('#ollama_temperature')?.value || '0'),
     email: $('#email')?.value || '',
     api_key: $('#api_key')?.value || '',
     output: $('#output')?.value || '',

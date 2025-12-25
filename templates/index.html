@@ -24,7 +24,11 @@
         </summary>
 
         <div class="settings-content stack">
-          {% include "_partials/provider_panels.html" %}
+          {% if allow_ai_config %}
+            {% include "_partials/provider_panels.html" %}
+          {% else %}
+            {% include "_partials/preset_ai_notice.html" %}
+          {% endif %}
 
           <hr class="separator" />
 
@@ -121,4 +125,3 @@
     </div>
   </footer>
 {% endblock %}
-

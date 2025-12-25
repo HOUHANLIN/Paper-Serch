@@ -1,0 +1,27 @@
+<div class="field-group">
+  <label>AI 配置</label>
+  <div class="alert info" style="margin: 0 0 12px;">
+    <strong>已使用管理员预设</strong>
+    <p style="margin: 6px 0 0;">
+      当前接入：{{ ai_preset_display.ai_provider_label or '默认模型' }}{% if ai_preset_display.model %} · 模型 {{ ai_preset_display.model }}{% endif %}.
+      如需调整，请联系系统管理员。
+    </p>
+  </div>
+  <input type="hidden" id="ai_provider" name="ai_provider" value="{{ ai_preset_display.ai_provider }}" />
+  {% if ai_preset_display.model %}
+    <input
+      type="hidden"
+      id="{{ ai_preset_display.ai_provider }}_model"
+      name="{{ ai_preset_display.ai_provider }}_model"
+      value="{{ ai_preset_display.model }}"
+    />
+  {% endif %}
+  {% if ai_preset_display.base_url %}
+    <input
+      type="hidden"
+      id="{{ ai_preset_display.ai_provider }}_base_url"
+      name="{{ ai_preset_display.ai_provider }}_base_url"
+      value="{{ ai_preset_display.base_url }}"
+    />
+  {% endif %}
+</div>

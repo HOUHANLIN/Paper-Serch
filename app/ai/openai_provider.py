@@ -1,29 +1,29 @@
-"""Ollama provider using local OpenAI-compatible endpoint."""
+"""OpenAI provider with real API calls for summaries."""
 import os
 import sys
 from typing import Optional
 
 from openai import OpenAI
 
-from paper_sources import ArticleInfo
+from app.sources import ArticleInfo
 
 from .base import AiProvider
 
 
-class OllamaProvider(AiProvider):
-    name = "ollama"
-    display_name = "Ollama (本地)"
+class OpenAIProvider(AiProvider):
+    name = "openai"
+    display_name = "OpenAI (实时调用)"
 
     def __init__(self) -> None:
-        self.api_key = os.environ.get("OLLAMA_API_KEY") or "ollama"
-        self.base_url = os.environ.get("OLLAMA_BASE_URL") or "http://localhost:11434/v1"
-        self.model = os.environ.get("OLLAMA_MODEL") or "llama3.1"
+        self.api_key = os.environ.get("OPENAI_API_KEY")
+        self.base_url = os.environ.get("OPENAI_BASE_URL") or os.environ.get("OPENAI_API_BASE")
+        self.model = os.environ.get("OPENAI_MODEL") or "gpt-4o-mini"
         self.temperature = self._get_temperature()
         self._client: Optional[OpenAI] = None
 
     def _get_temperature(self) -> float:
         try:
-            return float(os.environ.get("OLLAMA_TEMPERATURE", "0"))
+            return float(os.environ.get("OPENAI_TEMPERATURE", "0"))
         except ValueError:
             return 0.0
 
@@ -54,15 +54,13 @@ class OllamaProvider(AiProvider):
     def _ensure_client(self) -> bool:
         if self._client is not None:
             return True
-        base_url = self.base_url or ""
-        if not base_url:
+        if not self.api_key:
             return False
-        api_key = self.api_key or "ollama"
         try:
-            self._client = OpenAI(api_key=api_key, base_url=base_url)
+            self._client = OpenAI(api_key=self.api_key, base_url=self.base_url or None)
             return True
         except Exception as exc:  # pragma: no cover - external lib init
-            print(f"警告: 初始化 Ollama 客户端失败: {exc}", file=sys.stderr)
+            print(f"警告: 初始化 OpenAI 客户端失败: {exc}", file=sys.stderr)
             return False
 
     def summarize(self, info: ArticleInfo) -> str:
@@ -108,7 +106,7 @@ class OllamaProvider(AiProvider):
             return (content or "").strip()
         except Exception as exc:  # pragma: no cover - external service errors
             print(
-                f"警告: 生成 Ollama 总结失败（PMID {info.pmid}）: {exc}",
+                f"警告: 生成 OpenAI 总结失败（PMID {info.pmid}）: {exc}",
                 file=sys.stderr,
             )
             return ""

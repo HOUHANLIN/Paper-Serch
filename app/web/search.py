@@ -4,11 +4,11 @@ import json
 import threading
 from typing import Dict, Generator, List, Tuple
 
-from paper_sources import ArticleInfo
-from paper_sources.registry import get_source
+from app.sources import ArticleInfo
+from app.sources.registry import get_source
 
-from services.ai_summary import apply_ai_summary, normalize_annote
-from services.bibtex import build_bibtex_entries
+from app.core.ai_summary import apply_ai_summary, normalize_annote
+from app.core.bibtex import build_bibtex_entries
 
 
 def status_log_entry(step: str, status: str, detail: str) -> Dict[str, str]:
@@ -52,10 +52,6 @@ def perform_search_stream(
     openai_base_url: str,
     openai_model: str,
     openai_temperature: float,
-    ollama_api_key: str,
-    ollama_base_url: str,
-    ollama_model: str,
-    ollama_temperature: float,
     output: str,
     pubmed_semaphore: threading.Semaphore | None = None,
 ) -> Generator[Dict[str, object], None, None]:
@@ -111,10 +107,6 @@ def perform_search_stream(
                     openai_base_url,
                     openai_model,
                     openai_temperature,
-                    ollama_api_key,
-                    ollama_base_url,
-                    ollama_model,
-                    ollama_temperature,
                 )
                 ai_entry_status = "success" if "失败" not in ai_status else "error"
             except Exception as exc:  # pylint: disable=broad-except

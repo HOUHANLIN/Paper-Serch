@@ -3,22 +3,12 @@
   <select id="ai_provider" name="ai_provider">
     <option value="openai" {% if form.ai_provider=='openai' or not form.ai_provider %}selected{% endif %}>OpenAI</option>
     <option value="gemini" {% if form.ai_provider=='gemini' %}selected{% endif %}>Gemini</option>
-    <option value="ollama" {% if form.ai_provider=='ollama' %}selected{% endif %}>Ollama</option>
   </select>
 </div>
 
-{% for provider_name in ['ollama', 'openai', 'gemini'] %}
+{% for provider_name in ['openai', 'gemini'] %}
   <div class="provider-panel" data-provider="{{ provider_name }}">
-    {% if provider_name == 'ollama' %}
-      <div class="field-inline"><label for="ollama_api_key">API Key</label><input id="ollama_api_key" name="ollama_api_key" type="text" value="{{ form.ollama_api_key }}" placeholder="默认 ollama" /></div>
-      <div class="field-inline"><label for="ollama_base_url">Base URL</label><input id="ollama_base_url" name="ollama_base_url" type="text" value="{{ form.ollama_base_url }}" placeholder="默认 http://localhost:11434/v1" /></div>
-      <div class="field-inline"><label for="ollama_model">模型名称</label><input id="ollama_model" name="ollama_model" type="text" list="ollama-model-options" value="{{ form.ollama_model }}" placeholder="默认 llama3.1" /></div>
-      <datalist id="ollama-model-options"></datalist>
-      <div class="field-inline model-actions" style="grid-column: 1 / -1;">
-        <button class="btn ghost btn-sm btn-load-models" type="button" data-provider="ollama">获取可用模型列表</button>
-        <p class="muted models-message" style="margin: 6px 0 0;">点击后将通过接口拉取 models 列表，并填充到“模型名称”。</p>
-      </div>
-    {% elif provider_name == 'openai' %}
+    {% if provider_name == 'openai' %}
       <div class="field-inline"><label for="openai_api_key">API Key</label><input id="openai_api_key" name="openai_api_key" type="text" value="{{ form.openai_api_key }}" placeholder="留空读取环境变量" /></div>
       <div class="field-inline"><label for="openai_base_url">Base URL</label><input id="openai_base_url" name="openai_base_url" type="text" value="{{ form.openai_base_url }}" placeholder="兼容自托管接口" /></div>
       <div class="field-inline"><label for="openai_model">模型名称</label><input id="openai_model" name="openai_model" type="text" list="openai-model-options" value="{{ form.openai_model }}" placeholder="默认 gpt-4o-mini" /></div>

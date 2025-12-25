@@ -17,6 +17,12 @@
           <label>当前用户</label>
           <div class="muted">{{ current_user.email }}</div>
         </div>
+        {% if current_user.is_admin %}
+          <div class="field">
+            <label>管理员权限</label>
+            <div class="muted">是 · <a href="{{ url_for('admin_users') }}">进入管理面板</a></div>
+          </div>
+        {% endif %}
         <div class="field">
           <label>剩余次数</label>
           <div class="muted">{{ credits_balance }}</div>
@@ -46,4 +52,3 @@
     </div>
   </section>
 {% endblock %}
-

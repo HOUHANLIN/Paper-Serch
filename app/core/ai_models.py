@@ -4,9 +4,8 @@ import json
 import subprocess
 from typing import Dict, List, Tuple
 
-from ai_providers.gemini import GeminiProvider
-from ai_providers.ollama import OllamaProvider
-from ai_providers.openai_provider import OpenAIProvider
+from app.ai.gemini import GeminiProvider
+from app.ai.openai_provider import OpenAIProvider
 
 
 def _normalize_openai_base_url(base_url: str) -> str:
@@ -80,42 +79,6 @@ def list_openai_models(
     if not models:
         return [], "未从接口解析到可用模型"
     return models, f"获取到 {len(models)} 个模型"
-
-
-def list_ollama_models(
-    *,
-    api_key: str,
-    base_url: str,
-) -> Tuple[List[str], str]:
-    defaults = OllamaProvider()
-    resolved_key = (api_key or defaults.api_key or "ollama").strip()
-    resolved_base = _normalize_openai_base_url((base_url or defaults.base_url or "").strip())
-
-    ok, payload, err = _run_curl_json(
-        f"{resolved_base}/models",
-        headers={"Authorization": f"Bearer {resolved_key}"},
-    )
-    if ok:
-        models = sorted(set(_extract_ids_from_openai_models(payload)))
-        if models:
-            return models, f"获取到 {len(models)} 个模型"
-
-    # Fallback to Ollama native endpoint: /api/tags (base without /v1)
-    root = resolved_base[:-3] if resolved_base.endswith("/v1") else resolved_base
-    ok2, payload2, err2 = _run_curl_json(f"{root}/api/tags")
-    if not ok2:
-        return [], err or err2
-    if isinstance(payload2, dict) and isinstance(payload2.get("models"), list):
-        names = []
-        for item in payload2["models"]:
-            if isinstance(item, dict):
-                name = item.get("name")
-                if isinstance(name, str) and name.strip():
-                    names.append(name.strip())
-        models = sorted(set(names))
-        if models:
-            return models, f"获取到 {len(models)} 个模型"
-    return [], "未从接口解析到可用模型"
 
 
 def list_gemini_models(

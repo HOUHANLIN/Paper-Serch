@@ -1,6 +1,6 @@
 from typing import Protocol
 
-from paper_sources import ArticleInfo
+from app.sources import ArticleInfo
 
 
 class AiProvider(Protocol):
