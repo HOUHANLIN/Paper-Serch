@@ -16,6 +16,7 @@ from flask import (
     Flask,
     Response,
     g,
+    has_request_context,
     jsonify,
     redirect,
     render_template,
@@ -42,7 +43,9 @@ from app.core.db import (
     insert_workflow_run,
     list_recent_ledger,
     list_users_with_balances,
+    set_user_ai_config,
     set_user_admin,
+    set_user_workflow_limits,
 )
 from app.core.db import connect as db_connect
 from app.core.directions import extract_search_directions
@@ -69,14 +72,14 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 def _initial_credits() -> int:
     try:
-        return int(os.environ.get("INITIAL_CREDITS", "10"))
+        return int(os.environ.get("INITIAL_CREDITS", "3"))
     except ValueError:
-        return 10
+        return 3
 
 
 def _ai_presets() -> Dict[str, str]:
     provider = (os.environ.get("PRESET_AI_PROVIDER") or default_ai_provider_name()).strip()
-    return {
+    presets = {
         "ai_provider": provider or default_ai_provider_name(),
         "openai_api_key": os.environ.get("OPENAI_API_KEY") or "",
         "openai_base_url": os.environ.get("OPENAI_BASE_URL") or "",
@@ -86,6 +89,26 @@ def _ai_presets() -> Dict[str, str]:
         "gemini_model": os.environ.get("GEMINI_MODEL") or "",
         "gemini_temperature": os.environ.get("GEMINI_TEMPERATURE") or "0",
     }
+    if has_request_context():
+        user = getattr(g, "current_user", None)
+        if user is not None:
+            user_provider = (getattr(user, "ai_provider", "") or "").strip()
+            user_model = (getattr(user, "ai_model", "") or "").strip()
+            user_api_key = (getattr(user, "ai_api_key", "") or "").strip()
+            user_base_url = (getattr(user, "ai_base_url", "") or "").strip()
+
+            if user_provider in {"openai", "gemini"}:
+                presets["ai_provider"] = user_provider
+
+            effective_provider = (presets.get("ai_provider") or default_ai_provider_name()).strip() or default_ai_provider_name()
+            if effective_provider in {"openai", "gemini"}:
+                if user_model:
+                    presets[f"{effective_provider}_model"] = user_model
+                if user_api_key:
+                    presets[f"{effective_provider}_api_key"] = user_api_key
+                if effective_provider == "openai" and user_base_url:
+                    presets["openai_base_url"] = user_base_url
+    return presets
 
 
 def _ai_preset_display() -> Dict[str, str]:
@@ -199,12 +222,20 @@ def create_app() -> Flask:
 
     @app.context_processor
     def _inject_user():
+        workflow_limits = {"max_directions": 12, "max_results_per_direction": 50}
+        user = getattr(g, "current_user", None)
+        if user is not None and not getattr(user, "is_admin", False):
+            workflow_limits["max_directions"] = int(getattr(user, "workflow_max_directions", 6) or 6)
+            workflow_limits["max_results_per_direction"] = int(
+                getattr(user, "workflow_max_results_per_direction", 3) or 3
+            )
         return {
             "current_user": getattr(g, "current_user", None),
             "credits_balance": getattr(g, "credits_balance", 0),
             "allow_ai_config": _allow_ai_config(),
             "ai_preset_display": _ai_preset_display(),
             "registration_open": allow_self_registration,
+            "workflow_limits": workflow_limits,
         }
 
     def login_required(view):
@@ -245,7 +276,10 @@ def create_app() -> Flask:
         return ""
 
     @app.route("/", methods=["GET", "POST"])
+    @login_required
     def index():
+        if not getattr(g, "is_admin", False):
+            return redirect(url_for("workflow"))
         error = ""
         bibtex_text = ""
         count = 0
@@ -438,6 +472,10 @@ def create_app() -> Flask:
                 password = request.form.get("password") or ""
                 initial_credits = parse_int(request.form.get("initial_credits"), _initial_credits())
                 make_admin = (request.form.get("is_admin") or "") == "1"
+                ai_provider = (request.form.get("ai_provider") or "").strip()
+                ai_model = (request.form.get("ai_model") or "").strip()
+                ai_base_url = (request.form.get("ai_base_url") or "").strip()
+                ai_api_key = (request.form.get("ai_api_key") or "").strip()
                 if not email or "@" not in email:
                     error = "请输入合法邮箱。"
                 elif not password or len(password) < 6:
@@ -451,8 +489,15 @@ def create_app() -> Flask:
                             password_hash=password_hash,
                             initial_credits=initial_credits,
                             is_admin=make_admin,
+                            ai_provider=ai_provider,
+                            ai_model=ai_model,
+                            ai_api_key=ai_api_key,
+                            ai_base_url=ai_base_url,
                         )
-                        message = f"已创建账号 {email}（{'管理员' if make_admin else '普通用户'}），初始余额 {initial_credits}。"
+                        if make_admin:
+                            message = f"已创建管理员账号 {email}。"
+                        else:
+                            message = f"已创建账号 {email}（普通用户），初始余额 {initial_credits}。"
                     except sqlite3.IntegrityError:
                         error = "该邮箱已存在，请勿重复创建。"
                     except Exception as exc:  # pylint: disable=broad-except
@@ -487,6 +532,47 @@ def create_app() -> Flask:
                 else:
                     set_user_admin(conn, target_id, make_admin)
                     message = f"已更新 {target.email} 的管理员状态为 {'是' if make_admin else '否'}。"
+            elif action == "set_ai":
+                target_id = parse_int(request.form.get("user_id"), 0)
+                provider = (request.form.get("ai_provider") or "").strip()
+                model = (request.form.get("ai_model") or "").strip()
+                api_key = (request.form.get("ai_api_key") or "").strip()
+                base_url = (request.form.get("ai_base_url") or "").strip()
+                target = get_user_by_id(conn, target_id)
+                if not target:
+                    error = "用户不存在。"
+                else:
+                    try:
+                        set_user_ai_config(
+                            conn,
+                            target_id,
+                            ai_provider=provider,
+                            ai_model=model,
+                            ai_api_key=api_key,
+                            ai_base_url=base_url,
+                        )
+                        label = provider or "默认"
+                        message = f"已更新 {target.email} 的 AI 配置：{label}{(' · ' + model) if model else ''}。"
+                    except Exception as exc:  # pylint: disable=broad-except
+                        error = f"更新 AI 配置失败：{exc}"
+            elif action == "set_limits":
+                target_id = parse_int(request.form.get("user_id"), 0)
+                max_dirs = parse_int(request.form.get("workflow_max_directions"), 6)
+                max_results = parse_int(request.form.get("workflow_max_results_per_direction"), 3)
+                target = get_user_by_id(conn, target_id)
+                if not target:
+                    error = "用户不存在。"
+                else:
+                    try:
+                        set_user_workflow_limits(
+                            conn,
+                            target_id,
+                            workflow_max_directions=max_dirs,
+                            workflow_max_results_per_direction=max_results,
+                        )
+                        message = f"已更新 {target.email} 的工作流限额：方向≤{max_dirs}，每方向≤{max_results}。"
+                    except Exception as exc:  # pylint: disable=broad-except
+                        error = f"更新工作流限额失败：{exc}"
             else:
                 error = "未知操作类型。"
 
@@ -516,6 +602,7 @@ def create_app() -> Flask:
         return resp
 
     @app.route("/api/generate_query", methods=["POST"])
+    @admin_required
     def generate_query():
         data = request.get_json(force=True, silent=True) or {}
         intent = data.get("intent") or ""
@@ -537,9 +624,8 @@ def create_app() -> Flask:
         return jsonify({"query": query, "message": message})
 
     @app.route("/api/list_models", methods=["POST"])
+    @admin_required
     def list_models():
-        if not _allow_ai_config():
-            return jsonify({"error": "仅管理员可获取模型列表", "models": []}), 403
         data = request.get_json(force=True, silent=True) or {}
         ai_payload = _prepare_ai_payload(data)
         provider = (data.get("provider") or data.get("ai_provider") or "").strip()
@@ -566,22 +652,30 @@ def create_app() -> Flask:
         data = request.get_json(force=True, silent=True) or {}
         source = (data.get("source") or default_source_name()).strip()
         ai_payload = _prepare_ai_payload(data)
+        allow_ai_customization = _allow_ai_config()
+        preset_ai_config = _ai_presets()
         default_provider = str(ai_payload.get("ai_provider") or default_ai_provider_name())
         direction_ai_provider = (data.get("direction_ai_provider") or data.get("ai_provider") or default_provider).strip()
         query_ai_provider = (data.get("query_ai_provider") or direction_ai_provider or default_provider).strip()
         summary_ai_provider = (data.get("summary_ai_provider") or data.get("ai_provider") or default_provider).strip()
-        if not _allow_ai_config():
+        if not allow_ai_customization:
             direction_ai_provider = query_ai_provider = summary_ai_provider = default_provider
         years = parse_int(data.get("years"), int(get_source_defaults(source)["years"]))
         desired_count = parse_int(data.get("direction_count"), 0)
         if desired_count <= 0:
             desired_count = None
-        elif desired_count > 12:
-            desired_count = 12
-        max_results = max(
+            max_results = max(
             1,
             parse_int(data.get("max_results_per_direction") or data.get("max_results"), 3),
         )
+        if not getattr(g, "is_admin", False):
+            max_dirs_limit = int(getattr(g.current_user, "workflow_max_directions", 6) or 6)
+            max_results_limit = int(getattr(g.current_user, "workflow_max_results_per_direction", 3) or 3)
+            desired_count = max_dirs_limit if desired_count is None else min(desired_count, max_dirs_limit)
+            max_results = min(max_results, max_results_limit)
+        if desired_count is not None:
+            desired_count = max(1, min(int(desired_count), 12))
+        max_results = max(1, min(int(max_results), 50))
 
         pubmed_concurrency = parse_int(data.get("concurrency"), 3)
         if pubmed_concurrency <= 0:
@@ -599,6 +693,9 @@ def create_app() -> Flask:
             openai_temperature=float(ai_payload.get("openai_temperature") or 0.0),
             desired_count=desired_count,
         )
+        if not getattr(g, "is_admin", False):
+            max_dirs_limit = int(getattr(g.current_user, "workflow_max_directions", 6) or 6)
+            directions = directions[:max_dirs_limit]
         status_log: List[Dict[str, str]] = []
         if not directions:
             status_log.append(status_log_entry("提取方向", "error", extraction_message))
@@ -718,8 +815,8 @@ def create_app() -> Flask:
                     }
                     _, resolved = resolve_form(
                         resolved_payload,
-                        allow_ai_customization=_allow_ai_config(),
-                        preset_ai_config=_ai_presets(),
+                        allow_ai_customization=allow_ai_customization,
+                        preset_ai_config=preset_ai_config,
                     )
                     if not summary_ai_provider:
                         resolved["ai_provider"] = ""
@@ -873,22 +970,30 @@ def create_app() -> Flask:
         data = request.get_json(force=True, silent=True) or {}
         source = (data.get("source") or default_source_name()).strip()
         ai_payload = _prepare_ai_payload(data)
+        allow_ai_customization = _allow_ai_config()
+        preset_ai_config = _ai_presets()
         default_provider = str(ai_payload.get("ai_provider") or default_ai_provider_name())
         direction_ai_provider = (data.get("direction_ai_provider") or data.get("ai_provider") or default_provider).strip()
         query_ai_provider = (data.get("query_ai_provider") or direction_ai_provider or default_provider).strip()
         summary_ai_provider = (data.get("summary_ai_provider") or data.get("ai_provider") or default_provider).strip()
-        if not _allow_ai_config():
+        if not allow_ai_customization:
             direction_ai_provider = query_ai_provider = summary_ai_provider = default_provider
         years = parse_int(data.get("years"), int(get_source_defaults(source)["years"]))
         desired_count = parse_int(data.get("direction_count"), 0)
         if desired_count <= 0:
             desired_count = None
-        elif desired_count > 12:
-            desired_count = 12
         max_results = max(
             1,
             parse_int(data.get("max_results_per_direction") or data.get("max_results"), 3),
         )
+        if not getattr(g, "is_admin", False):
+            max_dirs_limit = int(getattr(g.current_user, "workflow_max_directions", 6) or 6)
+            max_results_limit = int(getattr(g.current_user, "workflow_max_results_per_direction", 3) or 3)
+            desired_count = max_dirs_limit if desired_count is None else min(desired_count, max_dirs_limit)
+            max_results = min(max_results, max_results_limit)
+        if desired_count is not None:
+            desired_count = max(1, min(int(desired_count), 12))
+        max_results = max(1, min(int(max_results), 50))
 
         pubmed_concurrency = parse_int(data.get("concurrency"), 3)
         if pubmed_concurrency <= 0:
@@ -915,6 +1020,9 @@ def create_app() -> Flask:
                     openai_temperature=float(ai_payload.get("openai_temperature") or 0.0),
                     desired_count=desired_count,
                 )
+                if not getattr(g, "is_admin", False):
+                    max_dirs_limit = int(getattr(g.current_user, "workflow_max_directions", 6) or 6)
+                    directions = directions[:max_dirs_limit]
                 if not directions:
                     yield sse_message("status", {"entry": status_log_entry("提取方向", "error", extraction_message)})
                     yield sse_message("error", {"message": extraction_message})
@@ -1044,8 +1152,8 @@ def create_app() -> Flask:
                             }
                             _, resolved = resolve_form(
                                 resolved_payload,
-                                allow_ai_customization=_allow_ai_config(),
-                                preset_ai_config=_ai_presets(),
+                                allow_ai_customization=allow_ai_customization,
+                                preset_ai_config=preset_ai_config,
                             )
                             if not summary_ai_provider:
                                 resolved["ai_provider"] = ""
@@ -1231,6 +1339,7 @@ def create_app() -> Flask:
         return Response(stream_with_context(event_stream()), mimetype="text/event-stream", headers=headers)
 
     @app.route("/api/search_stream", methods=["POST"])
+    @admin_required
     def search_stream():
         form_data = request.form or {}
         _, resolved = resolve_form(

@@ -43,8 +43,15 @@
 
           <div class="field">
             <label for="direction_count">主题数量</label>
-            <input id="direction_count" name="direction_count" type="number" min="1" max="12" value="5" />
-            <p class="muted" style="margin: 6px 0 0;">指定自动拆解成多少个检索主题（方向）。</p>
+            <input
+              id="direction_count"
+              name="direction_count"
+              type="number"
+              min="1"
+              max="{{ workflow_limits.max_directions or 6 }}"
+              value="6"
+            />
+            <p class="muted" style="margin: 6px 0 0;">指定自动拆解成多少个检索主题（方向），最多 {{ workflow_limits.max_directions or 6 }}。</p>
           </div>
 
           <div class="field-row">
@@ -54,7 +61,14 @@
             </div>
             <div class="field">
               <label for="max_results">条数/方向</label>
-              <input id="max_results" name="max_results" type="number" min="1" max="50" value="{{ form.max_results or 5 }}" />
+              <input
+                id="max_results"
+                name="max_results"
+                type="number"
+                min="1"
+                max="{{ workflow_limits.max_results_per_direction or 3 }}"
+                value="{{ form.max_results or 3 }}"
+              />
             </div>
           </div>
 

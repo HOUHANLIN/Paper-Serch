@@ -1,6 +1,15 @@
 <header class="site-header">
   <div class="container header-inner">
-    <a href="{{ url_for('index') }}" class="brand-mark">
+    {% if current_user %}
+      {% if current_user.is_admin %}
+        {% set brand_href = url_for('index') %}
+      {% else %}
+        {% set brand_href = url_for('workflow') %}
+      {% endif %}
+    {% else %}
+      {% set brand_href = url_for('login') %}
+    {% endif %}
+    <a href="{{ brand_href }}" class="brand-mark">
       <span class="dot"></span>
       <div>
         <div class="brand-sub">Paper-Serch</div>
@@ -8,14 +17,16 @@
       </div>
     </a>
     <nav class="nav-links">
-      <a href="{{ url_for('index') }}" {% if current_page == 'index' %}aria-current="page"{% endif %}>首页</a>
+      {% if current_user and current_user.is_admin %}
+        <a href="{{ url_for('index') }}" {% if current_page == 'index' %}aria-current="page"{% endif %}>首页</a>
+      {% endif %}
       <a href="{{ url_for('workflow') }}" {% if current_page == 'workflow' %}aria-current="page"{% endif %}>自动工作流</a>
       {% if current_user %}
         {% if current_user.is_admin %}
           <a href="{{ url_for('admin_users') }}" {% if current_page == 'admin_users' %}aria-current="page"{% endif %}>管理面板</a>
         {% endif %}
         <a href="{{ url_for('account') }}" {% if current_page == 'account' %}aria-current="page"{% endif %}>
-          账户（{{ credits_balance }} 次）
+          账户（{% if current_user.is_admin %}管理员{% else %}{{ credits_balance }} 次{% endif %}）
         </a>
         <form action="{{ url_for('logout') }}" method="post" style="display:inline;">
           <button class="linklike" type="submit">退出</button>

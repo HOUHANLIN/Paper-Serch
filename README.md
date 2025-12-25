@@ -31,7 +31,7 @@ Paper-Serch 是一个基于 Flask 的轻量级 Web 应用，用于快速检索�
 在项目根目录创建 `.env`（可参考 `.env.example`），按需填写：
 - `SECRET_KEY`（Flask session 签名密钥；建议生产环境设置）
 - `PAPER_SERCH_DB_PATH`（SQLite 数据库路径；默认 `paper_serch.db`）
-- `INITIAL_CREDITS`（注册默认赠送工作流次数；默认 10）
+- `INITIAL_CREDITS`（注册默认赠送工作流次数；默认 3，管理员账号不消耗次数）
 - `ALLOW_SELF_REGISTRATION`（是否开放自助注册；默认 `false`，管理员统一分配账号）
 - `ADMIN_EMAIL` / `ADMIN_PASSWORD`（可选：启动时自动创建管理员账号）
 - `PRESET_AI_PROVIDER`（默认 `openai`，普通用户使用的预设 Provider）
@@ -51,8 +51,9 @@ Paper-Serch 是一个基于 Flask 的轻量级 Web 应用，用于快速检索�
 5. 在结果区查看条目详情，展开摘要后复制或下载生成的 BibTeX。
 
 ## 管理员与权限
-- 默认关闭自助注册，可在 `.env` 中设置 `ADMIN_EMAIL/ADMIN_PASSWORD` 启动时自动创建管理员，或使用管理员面板 `/admin/users` 手动创建账号、调整余额与切换管理员权限。
-- 普通用户无法修改 AI Provider、API Key 等敏感配置，将使用环境中预设的 `PRESET_AI_PROVIDER` 与对应模型参数；管理员登录后可在页面上调整。
+- 默认需要登录后使用；普通用户登录后仅可使用“自动工作流”，文献检索首页仅管理员可用。
+- 默认关闭自助注册，可在 `.env` 中设置 `ADMIN_EMAIL/ADMIN_PASSWORD` 启动时自动创建管理员，或使用管理员面板 `/admin/users` 创建账号、调整余额/权限与配置用户使用的 AI（Provider/模型/API Key/Base URL）。
+- 管理员账号不消耗次数；普通用户无法在页面修改 AI Provider、API Key 等敏感配置，将使用管理面板中为该用户设置的 AI 配置（留空则回退到 `.env` 的全局预设）。
 
 ## 目录速览
 - `webapp.py`：入口脚本，导入并运行应用。
@@ -63,11 +64,10 @@ Paper-Serch 是一个基于 Flask 的轻量级 Web 应用，用于快速检索�
 - `app/ai/`：AI 提供方实现与注册表。
 - `templates/`：页面模板。
 - `static/`：样式与前端脚本。
-- `docs/`：文档（变更记录、开发者说明、提示词与当前不足）。
+- `docs/`：文档（数据库结构、提示词与当前不足）。
 
 ## 文档
-- `docs/CHANGELOG.md`：变更记录。
-- `docs/DEVELOPER.md`：开发者指南。
+- `docs/DATABASE.md`：数据库结构说明。
 - `docs/AI_PROMPTS.md`：AI 提示词汇总。
 - `docs/LIMITATIONS.md`：当前不足与改进建议。
 

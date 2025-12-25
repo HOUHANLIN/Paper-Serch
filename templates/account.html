@@ -25,7 +25,7 @@
         {% endif %}
         <div class="field">
           <label>剩余次数</label>
-          <div class="muted">{{ credits_balance }}</div>
+          <div class="muted">{% if current_user.is_admin %}管理员{% else %}{{ credits_balance }}{% endif %}</div>
         </div>
       </div>
     </div>
