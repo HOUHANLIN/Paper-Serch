@@ -2,8 +2,10 @@ from __future__ import annotations
 
 """Reusable AI summary helpers."""
 
+import os
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Tuple
 
 from ai_providers.gemini import GeminiProvider
@@ -69,37 +71,76 @@ def apply_ai_summary(
 ) -> str:
     """Apply AI summary generation to a list of articles."""
 
-    provider = get_provider(provider_name)
-    if not provider:
+    if not infos:
+        return "无需生成摘要：没有可处理的文献条目"
+
+    base_provider = get_provider(provider_name)
+    if not base_provider:
         return "AI 摘要失败：未找到可用的 AI 模型"
 
-    if isinstance(provider, GeminiProvider):
-        provider.set_config(
-            api_key=gemini_api_key or None,
-            model=gemini_model or None,
-            temperature=gemini_temperature,
-        )
-    if isinstance(provider, OpenAIProvider):
-        provider.set_config(
-            api_key=openai_api_key or None,
-            base_url=openai_base_url or None,
-            model=openai_model or None,
-            temperature=openai_temperature,
-        )
-    if isinstance(provider, OllamaProvider):
-        provider.set_config(
-            api_key=ollama_api_key or None,
-            base_url=ollama_base_url or None,
-            model=ollama_model or None,
-            temperature=ollama_temperature,
-        )
+    provider_display_name = getattr(base_provider, "display_name", provider_name)
+
+    def _configure(provider) -> None:
+        if isinstance(provider, GeminiProvider):
+            provider.set_config(
+                api_key=gemini_api_key or None,
+                model=gemini_model or None,
+                temperature=gemini_temperature,
+            )
+        if isinstance(provider, OpenAIProvider):
+            provider.set_config(
+                api_key=openai_api_key or None,
+                base_url=openai_base_url or None,
+                model=openai_model or None,
+                temperature=openai_temperature,
+            )
+        if isinstance(provider, OllamaProvider):
+            provider.set_config(
+                api_key=ollama_api_key or None,
+                base_url=ollama_base_url or None,
+                model=ollama_model or None,
+                temperature=ollama_temperature,
+            )
 
     applied = 0
-    for info in infos:
-        summary = provider.summarize(info)
-        if summary:
-            info.annote, _, _ = normalize_annote(summary)
-            applied += 1
+
+    # Default to "unlimited" concurrency for AI calls: one worker per article.
+    # You can still override via AI_SUMMARY_CONCURRENCY; values <= 0 fall back to len(infos).
+    try:
+        configured = int(os.environ.get("AI_SUMMARY_CONCURRENCY", "").strip() or "0")
+    except ValueError:
+        configured = 0
+    if configured <= 0:
+        max_workers = len(infos)
+    else:
+        max_workers = configured
+    max_workers = max(1, min(max_workers, len(infos)))
+
+    def _summarize_one(idx: int) -> Tuple[int, str]:
+        info = infos[idx]
+        provider = get_provider(provider_name)
+        if not provider:
+            return idx, ""
+        try:
+            _configure(provider)
+            return idx, provider.summarize(info) or ""
+        except Exception:  # pylint: disable=broad-except
+            return idx, ""
+
+    if max_workers <= 1 or len(infos) <= 1:
+        for idx in range(len(infos)):
+            _, summary = _summarize_one(idx)
+            if summary:
+                infos[idx].annote, _, _ = normalize_annote(summary)
+                applied += 1
+    else:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [executor.submit(_summarize_one, idx) for idx in range(len(infos))]
+            for fut in as_completed(futures):
+                idx, summary = fut.result()
+                if summary:
+                    infos[idx].annote, _, _ = normalize_annote(summary)
+                    applied += 1
     if applied:
-        return f"已使用 {provider.display_name} 生成 {applied} 条摘要"
+        return f"已使用 {provider_display_name} 生成 {applied} 条摘要"
     return "AI 未返回摘要，可能未配置模型或接口未返回内容"

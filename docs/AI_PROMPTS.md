@@ -82,6 +82,8 @@
 
 ## 4) 文献摘要与引用建议（AI 总结）
 
+> 实现说明：AI 总结会对“每篇文章”单独发起一次调用（一次调用总结一篇文章）。默认并发不限制；如需限制可设置环境变量 `AI_SUMMARY_CONCURRENCY`（正整数）。
+
 ### 4.1 OpenAI / Ollama：system prompt（`ai_providers/openai_provider.py`、`ai_providers/ollama.py`）
 
 ```text
@@ -124,4 +126,3 @@
 年份: {year}
 摘要: {abstract}
 ```
-

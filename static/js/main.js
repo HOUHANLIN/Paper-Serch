@@ -197,10 +197,10 @@ function fillDatalist(datalistId, models) {
   });
 }
 
-async function loadModelsForProvider() {
-  const provider = $('#ai_provider')?.value || '';
-  const message = $('#models-message');
-  const btn = $('#btn-load-models');
+async function loadModelsForProvider(event) {
+  const btn = event?.currentTarget || null;
+  const provider = btn?.dataset?.provider || $('#ai_provider')?.value || '';
+  const message = btn?.closest('.model-actions')?.querySelector('.models-message') || null;
   if (!provider) return;
   if (btn) btn.disabled = true;
   if (message) message.textContent = '正在获取模型列表...';
@@ -748,6 +748,7 @@ async function runAutoWorkflow(event) {
     years: $('#years')?.value || '',
     direction_count: parseInt($('#direction_count')?.value || '', 10) || '',
     max_results_per_direction: parseInt($('#max_results')?.value || '3', 10) || 3,
+    concurrency: parseInt($('#concurrency')?.value || '3', 10) || 3,
     direction_ai_provider: $('#ai_provider')?.value || '',
     query_ai_provider: $('#ai_provider')?.value || '',
     summary_ai_provider: $('#ai_provider')?.value || '',
@@ -767,30 +768,97 @@ async function runAutoWorkflow(event) {
     output: $('#output')?.value || '',
   };
   try {
-    const resp = await fetch('/api/auto_workflow', {
+    const resp = await fetch('/api/auto_workflow_stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    const data = await resp.json();
-    if (!resp.ok) {
+    if (!resp.ok || !resp.body) {
+      const data = await resp.json().catch(() => ({}));
       showError(data.error || '自动工作流失败，请检查配置。');
       if (data.status_log) renderStatusLog(data.status_log);
       else appendStatus({ step: '自动工作流', status: 'error', detail: data.error || '自动工作流失败' });
       stopTimer(false, data.error || '自动工作流失败');
       return;
     }
-    renderDirections(data.directions || []);
-    if (data.status_log) renderStatusLog(data.status_log);
-    else appendStatus({ step: '自动工作流', status: 'success', detail: '已完成拆解与检索。' });
-    updateBibtex(data.bibtex_text || '', data.count || 0);
-    if ($('#direction-results')) {
-      renderDirectionGroups(data.directions || []);
-    } else {
-      renderArticles(data.articles || []);
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    const directionDetails = [];
+    const combinedBibtexParts = [];
+    let combinedCount = 0;
+    let combinedArticles = [];
+
+    const updateCombined = () => {
+      const combinedBibtex = combinedBibtexParts.filter(Boolean).join('\n\n');
+      updateBibtex(combinedBibtex, combinedCount);
+      if ($('#direction-results')) renderDirectionGroups(directionDetails);
+    };
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop() || '';
+      parts.filter(Boolean).forEach((part) => {
+        const { eventType, payload } = parseSse(part);
+        if (eventType === 'status' && payload.entry) appendStatus(payload.entry);
+        if (eventType === 'error' && payload.message) {
+          showError(payload.message);
+          stopTimer(false, payload.message);
+        }
+        if (eventType === 'workflow_init') {
+          const dirs = payload.directions || [];
+          directionDetails.length = 0;
+          dirs.forEach((d) => directionDetails.push({ direction: String(d || ''), message: '等待执行...' }));
+          renderDirections(directionDetails);
+          if ($('#direction-results')) renderDirectionGroups(directionDetails);
+        }
+        if (eventType === 'direction_result' && payload.detail) {
+          const idx = Number(payload.index || 0);
+          if (!Number.isNaN(idx) && idx >= 0) directionDetails[idx] = payload.detail;
+          renderDirections(directionDetails);
+          if (payload.detail && !payload.detail.error) {
+            combinedCount += Number(payload.detail.count || 0);
+            if (payload.detail.bibtex_text) combinedBibtexParts.push(String(payload.detail.bibtex_text || '').trim());
+            const articles = payload.detail.articles || [];
+            if (Array.isArray(articles) && articles.length) combinedArticles = combinedArticles.concat(articles);
+            updateCombined();
+          } else if ($('#direction-results')) {
+            renderDirectionGroups(directionDetails);
+          }
+        }
+        if (eventType === 'workflow_done') {
+          const dirs = payload.directions || directionDetails;
+          renderDirections(dirs);
+          if ($('#direction-results')) renderDirectionGroups(dirs);
+          updateBibtex(payload.bibtex_text || combinedBibtexParts.join('\n\n'), payload.count || combinedCount);
+          ensureAiStatusFinal({ articles: payload.articles || combinedArticles });
+          showError('');
+          stopTimer(true);
+        }
+      });
     }
-    ensureAiStatusFinal({ articles: data.articles || [] });
-    stopTimer(true);
+
+    if (buffer.trim()) {
+      const { eventType, payload } = parseSse(buffer.trim());
+      if (eventType === 'status' && payload.entry) appendStatus(payload.entry);
+      if (eventType === 'error' && payload.message) {
+        showError(payload.message);
+        stopTimer(false, payload.message);
+      }
+      if (eventType === 'workflow_done') {
+        const dirs = payload.directions || directionDetails;
+        renderDirections(dirs);
+        if ($('#direction-results')) renderDirectionGroups(dirs);
+        updateBibtex(payload.bibtex_text || combinedBibtexParts.join('\n\n'), payload.count || combinedCount);
+        ensureAiStatusFinal({ articles: payload.articles || combinedArticles });
+        showError('');
+        stopTimer(true);
+      }
+    }
   } catch (err) {
     console.error(err);
     showError('自动工作流失败，请检查网络或 AI 配置。');
@@ -811,7 +879,9 @@ function wireEvents() {
   $('#btn-apply-query')?.addEventListener('click', applyGeneratedQuery);
   $('#btn-auto-workflow')?.addEventListener('click', runAutoWorkflow);
   $('#copy-btn')?.addEventListener('click', copyBibtex);
-  $('#btn-load-models')?.addEventListener('click', loadModelsForProvider);
+  document.querySelectorAll('.btn-load-models').forEach((button) => {
+    button.addEventListener('click', loadModelsForProvider);
+  });
 
   TOOLBAR_FIELDS.forEach(({ id }) => {
     const el = document.getElementById(id);

@@ -1,4 +1,6 @@
 from typing import Dict, List
+import queue
+import threading
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -214,13 +216,19 @@ def auto_workflow():
 
     max_query_retries = 3
 
-    concurrency = parse_int(data.get("concurrency"), 3)
-    if concurrency <= 0:
-        concurrency = 1
-    if concurrency > 6:
-        concurrency = 6
-    max_workers = min(concurrency, len(directions)) if directions else 1
-    status_log.append(status_log_entry("并发检索", "success", f"方向数={len(directions)}，并发数={max_workers}"))
+    pubmed_concurrency = parse_int(data.get("concurrency"), 3)
+    if pubmed_concurrency <= 0:
+        pubmed_concurrency = 1
+    pubmed_semaphore = threading.BoundedSemaphore(pubmed_concurrency)
+
+    max_workers = len(directions) if directions else 1
+    status_log.append(
+        status_log_entry(
+            "并发检索",
+            "success",
+            f"方向数={len(directions)}（不限制方向并发），PubMed 并发={pubmed_concurrency}",
+        )
+    )
 
     def _run_direction(index: int, direction: str) -> Dict[str, object]:
         direction_status_log = [status_log_entry("检索方向", "running", direction)]
@@ -296,6 +304,7 @@ def auto_workflow():
                 _, resolved = resolve_form(resolved_payload)
                 if not summary_ai_provider:
                     resolved["ai_provider"] = ""
+                resolved["pubmed_semaphore"] = pubmed_semaphore
                 search_error, bibtex_text, count, articles, search_status_log = consume_search_stream(resolved)
                 direction_status_log.extend(search_status_log)
 
@@ -435,6 +444,321 @@ def auto_workflow():
             "message": extraction_message,
         }
     )
+
+
+@app.route("/api/auto_workflow_stream", methods=["POST"])
+def auto_workflow_stream():
+    data = request.get_json(force=True, silent=True) or {}
+    source = (data.get("source") or default_source_name()).strip()
+    direction_ai_provider = (
+        data.get("direction_ai_provider") or data.get("ai_provider") or default_ai_provider_name()
+    ).strip()
+    query_ai_provider = (data.get("query_ai_provider") or direction_ai_provider).strip()
+    summary_ai_provider = (
+        data.get("summary_ai_provider") or data.get("ai_provider") or default_ai_provider_name()
+    ).strip()
+    years = parse_int(data.get("years"), int(get_source_defaults(source)["years"]))
+    desired_count = parse_int(data.get("direction_count"), 0)
+    if desired_count <= 0:
+        desired_count = None
+    elif desired_count > 12:
+        desired_count = 12
+    max_results = max(
+        1,
+        parse_int(data.get("max_results_per_direction") or data.get("max_results"), 3),
+    )
+
+    pubmed_concurrency = parse_int(data.get("concurrency"), 3)
+    if pubmed_concurrency <= 0:
+        pubmed_concurrency = 1
+    pubmed_semaphore = threading.BoundedSemaphore(pubmed_concurrency)
+
+    def event_stream():
+        yield sse_message(
+            "status",
+            {"entry": status_log_entry("自动工作流", "running", "正在拆解内容方向...")},
+        )
+
+        directions, extraction_message = extract_search_directions(
+            content=data.get("content") or "",
+            ai_provider=direction_ai_provider,
+            gemini_api_key=(data.get("gemini_api_key") or "").strip(),
+            gemini_model=(data.get("gemini_model") or "").strip(),
+            gemini_temperature=parse_float(data.get("gemini_temperature"), 0.0),
+            openai_api_key=(data.get("openai_api_key") or "").strip(),
+            openai_base_url=(data.get("openai_base_url") or "").strip(),
+            openai_model=(data.get("openai_model") or "").strip(),
+            openai_temperature=parse_float(data.get("openai_temperature"), 0.0),
+            ollama_api_key=(data.get("ollama_api_key") or "").strip(),
+            ollama_base_url=(data.get("ollama_base_url") or "").strip(),
+            ollama_model=(data.get("ollama_model") or "").strip(),
+            ollama_temperature=parse_float(data.get("ollama_temperature"), 0.0),
+            desired_count=desired_count,
+        )
+        if not directions:
+            yield sse_message("status", {"entry": status_log_entry("提取方向", "error", extraction_message)})
+            yield sse_message("error", {"message": extraction_message})
+            return
+
+        max_workers = len(directions) if directions else 1
+        yield sse_message("status", {"entry": status_log_entry("提取方向", "success", extraction_message)})
+        yield sse_message(
+            "status",
+            {
+                "entry": status_log_entry(
+                    "并发检索",
+                    "success",
+                    f"方向数={len(directions)}（不限制方向并发），PubMed 并发={pubmed_concurrency}",
+                )
+            },
+        )
+        yield sse_message("workflow_init", {"directions": directions, "message": extraction_message})
+
+        event_queue: queue.Queue[tuple[str, Dict[str, object]]] = queue.Queue()
+        max_query_retries = 3
+
+        def _emit(event_type: str, payload: Dict[str, object]) -> None:
+            event_queue.put((event_type, payload))
+
+        def _prefixed(direction: str, entry: Dict[str, str]) -> Dict[str, str]:
+            return {
+                "step": f"[{direction}] {entry.get('step', '')}",
+                "status": entry.get("status", ""),
+                "detail": entry.get("detail", ""),
+            }
+
+        def _run_direction(index: int, direction: str) -> None:
+            direction_status_log: List[Dict[str, str]] = [status_log_entry("检索方向", "running", direction)]
+            try:
+                query, query_message = generate_query_terms(
+                    source_name=source,
+                    intent=direction,
+                    ai_provider=query_ai_provider,
+                    gemini_api_key=(data.get("gemini_api_key") or "").strip(),
+                    gemini_model=(data.get("gemini_model") or "").strip(),
+                    gemini_temperature=parse_float(data.get("gemini_temperature"), 0.0),
+                    openai_api_key=(data.get("openai_api_key") or "").strip(),
+                    openai_base_url=(data.get("openai_base_url") or "").strip(),
+                    openai_model=(data.get("openai_model") or "").strip(),
+                    openai_temperature=parse_float(data.get("openai_temperature"), 0.0),
+                    ollama_api_key=(data.get("ollama_api_key") or "").strip(),
+                    ollama_base_url=(data.get("ollama_base_url") or "").strip(),
+                    ollama_model=(data.get("ollama_model") or "").strip(),
+                    ollama_temperature=parse_float(data.get("ollama_temperature"), 0.0),
+                )
+
+                if not query:
+                    direction_status_log.append(status_log_entry("生成检索式", "error", query_message))
+                    for entry in prefix_status(direction, direction_status_log):
+                        _emit("status", {"entry": entry})
+                    _emit(
+                        "direction_result",
+                        {
+                            "index": index,
+                            "detail": {
+                                "direction": direction,
+                                "query": "",
+                                "message": query_message,
+                                "error": query_message,
+                                "status_log": prefix_status(direction, direction_status_log),
+                            },
+                        },
+                    )
+                    return
+
+                direction_status_log.append(status_log_entry("生成检索式", "success", query_message))
+                _emit("status", {"entry": _prefixed(direction, direction_status_log[-1])})
+
+                current_query = query
+                current_query_message = query_message
+                retry_count = 0
+                bibtex_text = ""
+                count = 0
+                view_articles: List[Dict[str, str]] = []
+                search_error = ""
+
+                while True:
+                    resolved_payload = {
+                        "source": source,
+                        "query": current_query,
+                        "years": str(years),
+                        "max_results": str(max_results),
+                        "ai_provider": summary_ai_provider,
+                        "email": (data.get("email") or "").strip(),
+                        "api_key": (data.get("api_key") or "").strip(),
+                        "output": (data.get("output") or "").strip(),
+                        "gemini_api_key": (data.get("gemini_api_key") or "").strip(),
+                        "gemini_model": (data.get("gemini_model") or "").strip(),
+                        "gemini_temperature": data.get("gemini_temperature") or "0",
+                        "openai_api_key": (data.get("openai_api_key") or "").strip(),
+                        "openai_base_url": (data.get("openai_base_url") or "").strip(),
+                        "openai_model": (data.get("openai_model") or "").strip(),
+                        "openai_temperature": data.get("openai_temperature") or "0",
+                        "ollama_api_key": (data.get("ollama_api_key") or "").strip(),
+                        "ollama_base_url": (data.get("ollama_base_url") or "").strip(),
+                        "ollama_model": (data.get("ollama_model") or "").strip(),
+                        "ollama_temperature": data.get("ollama_temperature") or "0",
+                    }
+                    _, resolved = resolve_form(resolved_payload)
+                    if not summary_ai_provider:
+                        resolved["ai_provider"] = ""
+                    resolved["pubmed_semaphore"] = pubmed_semaphore
+
+                    for event in perform_search_stream(**resolved):
+                        if event.get("type") == "status" and event.get("entry"):
+                            _emit("status", {"entry": _prefixed(direction, event["entry"])})
+                        if event.get("type") == "result":
+                            bibtex_text = str(event.get("bibtex_text") or "")
+                            count = int(event.get("count") or 0)
+                            view_articles = event.get("articles") or []
+                        if event.get("type") == "error" and event.get("message"):
+                            search_error = str(event.get("message"))
+
+                    if not search_error or count > 0:
+                        break
+
+                    if retry_count >= max_query_retries:
+                        break
+
+                    retry_count += 1
+                    retry_prompt = (
+                        f"{direction}\n"
+                        f"原检索式未能检索到结果：{current_query}\n"
+                        "请在不偏离主题的前提下调整或扩展关键词，给出新的检索式。"
+                    )
+                    _emit(
+                        "status",
+                        {"entry": _prefixed(direction, status_log_entry("检索重试", "running", f"第 {retry_count} 次尝试改写检索式"))},
+                    )
+                    current_query, current_query_message = generate_query_terms(
+                        source_name=source,
+                        intent=retry_prompt,
+                        ai_provider=query_ai_provider,
+                        gemini_api_key=(data.get("gemini_api_key") or "").strip(),
+                        gemini_model=(data.get("gemini_model") or "").strip(),
+                        gemini_temperature=parse_float(data.get("gemini_temperature"), 0.0),
+                        openai_api_key=(data.get("openai_api_key") or "").strip(),
+                        openai_base_url=(data.get("openai_base_url") or "").strip(),
+                        openai_model=(data.get("openai_model") or "").strip(),
+                        openai_temperature=parse_float(data.get("openai_temperature"), 0.0),
+                        ollama_api_key=(data.get("ollama_api_key") or "").strip(),
+                        ollama_base_url=(data.get("ollama_base_url") or "").strip(),
+                        ollama_model=(data.get("ollama_model") or "").strip(),
+                        ollama_temperature=parse_float(data.get("ollama_temperature"), 0.0),
+                    )
+                    if not current_query:
+                        _emit(
+                            "status",
+                            {"entry": _prefixed(direction, status_log_entry("检索重试", "error", current_query_message))},
+                        )
+                        break
+                    _emit(
+                        "status",
+                        {"entry": _prefixed(direction, status_log_entry("检索重试", "success", f"已生成新的检索式（重试 {retry_count}）"))},
+                    )
+                    search_error = ""
+                    bibtex_text = ""
+                    count = 0
+                    view_articles = []
+
+                for article in view_articles:
+                    article["direction"] = direction
+
+                if search_error:
+                    _emit(
+                        "direction_result",
+                        {
+                            "index": index,
+                            "detail": {
+                                "direction": direction,
+                                "query": current_query,
+                                "message": current_query_message,
+                                "error": search_error,
+                                "retry_count": retry_count,
+                                "status_log": [],
+                            },
+                        },
+                    )
+                    return
+
+                _emit(
+                    "direction_result",
+                    {
+                        "index": index,
+                        "detail": {
+                            "direction": direction,
+                            "query": current_query,
+                            "message": current_query_message,
+                            "count": count,
+                            "articles": view_articles,
+                            "bibtex_text": bibtex_text,
+                            "retry_count": retry_count,
+                            "status_log": [],
+                        },
+                    },
+                )
+            except Exception as exc:  # pylint: disable=broad-except
+                _emit(
+                    "direction_result",
+                    {
+                        "index": index,
+                        "detail": {
+                            "direction": direction,
+                            "query": "",
+                            "message": "",
+                            "error": str(exc),
+                            "status_log": [],
+                        },
+                    },
+                )
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            for idx, direction in enumerate(directions):
+                executor.submit(_run_direction, idx, direction)
+
+            direction_details: List[Dict[str, object]] = [{} for _ in directions]
+            combined_bibtex_parts: List[str] = []
+            combined_articles: List[Dict[str, str]] = []
+            total_count = 0
+            finished = 0
+
+            while finished < len(directions):
+                event_type, payload = event_queue.get()
+                if event_type == "direction_result":
+                    idx = int(payload.get("index") or 0)
+                    detail = payload.get("detail") or {}
+                    if 0 <= idx < len(direction_details):
+                        direction_details[idx] = detail
+
+                    detail_error = str(detail.get("error") or "").strip()
+                    if not detail_error:
+                        bibtex_text = str(detail.get("bibtex_text") or "").strip()
+                        if bibtex_text:
+                            combined_bibtex_parts.append(bibtex_text)
+                        total_count += int(detail.get("count") or 0)
+                        articles = detail.get("articles") or []
+                        if isinstance(articles, list):
+                            combined_articles.extend(articles)
+
+                    finished += 1
+                    yield sse_message("direction_result", payload)
+                else:
+                    yield sse_message(event_type, payload)
+
+            combined_bibtex = "\n\n".join(part.strip() for part in combined_bibtex_parts if part.strip())
+            yield sse_message(
+                "workflow_done",
+                {
+                    "directions": direction_details,
+                    "bibtex_text": combined_bibtex,
+                    "count": total_count,
+                    "articles": combined_articles,
+                    "message": extraction_message,
+                },
+            )
+
+    headers = {"Cache-Control": "no-cache", "Connection": "keep-alive"}
+    return Response(stream_with_context(event_stream()), mimetype="text/event-stream", headers=headers)
 
 
 @app.route("/api/search_stream", methods=["POST"])

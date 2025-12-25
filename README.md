@@ -6,7 +6,7 @@ Paper-Serch 是一个基于 Flask 的轻量级 Web 应用，用于快速检索�
 - Web 端一站式完成检索、进度查看与 BibTeX 导出。
 - 可选接入 Gemini 或 OpenAI 兼容接口生成中文摘要和引用提示。
 - 表单预设示例检索式与默认年份/数量，开箱即用。
-- 支持 SSE 实时推送运行状态，方便排查问题。
+- 支持 SSE 实时推送运行状态（单次检索与自动工作流），方便排查问题。
 
 ## 环境与运行方式（使用 uv）
 1. 创建虚拟环境并安装依赖：
@@ -33,6 +33,9 @@ Paper-Serch 是一个基于 Flask 的轻量级 Web 应用，用于快速检索�
 在项目根目录创建 `.env`（可参考 `.env.example`），按需填写：
 - `GEMINI_API_KEY` / `GEMINI_MODEL` / `GEMINI_TEMPERATURE`
 - `OPENAI_API_KEY` / `OPENAI_BASE_URL` / `OPENAI_MODEL` / `OPENAI_TEMPERATURE`
+- `PUBMED_MAX_CONCURRENT_REQUESTS`（默认 3，全局默认 PubMed 并发上限）
+- `PUBMED_MAX_RETRIES` / `PUBMED_BACKOFF_BASE` / `PUBMED_BACKOFF_MAX`（PubMed 失败重试与退避）
+- `AI_SUMMARY_CONCURRENCY`（AI 摘要并发；不设置/≤0 默认不限制）
 
 未填写时可在 Web 表单中输入；缺省值会使用页面内置示例或后端默认值。
 
@@ -51,7 +54,13 @@ Paper-Serch 是一个基于 Flask 的轻量级 Web 应用，用于快速检索�
 - `paper_sources/`：文献源实现与注册表。
 - `ai_providers/`：AI 摘要提供方实现与注册表。
 - `services/`：BibTeX 生成等通用服务。
-- `docs/`：变更记录与开发者说明。
+- `docs/`：文档（变更记录、开发者说明、提示词与当前不足）。
+
+## 文档
+- `docs/CHANGELOG.md`：变更记录。
+- `docs/DEVELOPER.md`：开发者指南。
+- `docs/AI_PROMPTS.md`：AI 提示词汇总。
+- `docs/LIMITATIONS.md`：当前不足与改进建议。
 
 ## 开发提示
 - 推荐使用 `uv run python -m compileall .` 做快速语法检查。

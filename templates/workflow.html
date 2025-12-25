@@ -57,13 +57,18 @@
           <div class="field">
             <label class="switch">
               <input type="checkbox" id="toggle-contact" />
-              <span>高级参数 (Email/API)</span>
+              <span>高级参数 (Email/API/并发)</span>
             </label>
           </div>
 
           <div id="contact-fields" style="display:none;" class="stack">
             <div class="field"><label for="email">联系邮箱</label><input id="email" name="email" type="text" value="{{ form.email }}" /></div>
             <div class="field"><label for="api_key">API Key</label><input id="api_key" name="api_key" type="text" value="{{ form.api_key }}" /></div>
+            <div class="field">
+              <label for="concurrency">PubMed 并发</label>
+              <input id="concurrency" name="concurrency" type="number" min="1" max="50" value="3" />
+              <p class="muted" style="margin: 6px 0 0;">限制 PubMed HTTP 请求并发（方向本身不限制并发）。</p>
+            </div>
           </div>
         </div>
       </details>

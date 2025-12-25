@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from typing import Dict, Generator, List, Tuple
 
 from paper_sources import ArticleInfo
@@ -56,6 +57,7 @@ def perform_search_stream(
     ollama_model: str,
     ollama_temperature: float,
     output: str,
+    pubmed_semaphore: threading.Semaphore | None = None,
 ) -> Generator[Dict[str, object], None, None]:
     status_log: List[Dict[str, str]] = []
 
@@ -73,13 +75,17 @@ def perform_search_stream(
 
         yield {"type": "status", "entry": _emit("检索中", "running", "正在向数据源获取文献...")}
 
-        articles = source_obj.search(
-            query=query,
-            years=years,
-            max_results=max_results,
-            email=email or None,
-            api_key=api_key or None,
-        )
+        search_kwargs = {
+            "query": query,
+            "years": years,
+            "max_results": max_results,
+            "email": email or None,
+            "api_key": api_key or None,
+        }
+        if getattr(source_obj, "name", "") == "pubmed" and pubmed_semaphore is not None:
+            search_kwargs["pubmed_semaphore"] = pubmed_semaphore
+
+        articles = source_obj.search(**search_kwargs)
         if not articles:
             yield {
                 "type": "status",

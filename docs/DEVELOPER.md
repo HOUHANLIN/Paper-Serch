@@ -1,24 +1,44 @@
 # 开发者指南
 
-本说明聚焦当前版本（0.5.0）的项目结构与本地开发方式，默认使用 `uv` 进行环境与依赖管理。
+本说明聚焦当前版本（0.5.0）的项目结构、常用运行方式与关键实现点。
 
-## 本地环境
-1. 安装依赖：`uv venv && source .venv/bin/activate && uv sync`。
-2. 运行应用：`uv run webapp.py`，访问 `http://127.0.0.1:5000`。
-3. 快速检查：`uv run python -m compileall .` 可做语法级校验。
+## 本地开发（使用 uv）
+1. 安装依赖：`uv venv && source .venv/bin/activate && uv sync`
+2. 运行应用：`uv run webapp.py`，访问 `http://127.0.0.1:5000`
+3. 语法检查：`python3 -m compileall .`
 
-## 目录结构
-- `webapp.py`：Flask 入口，包含 API 路由与 SSE 推送逻辑。
-- `web_layer/`：Web 层拆分出的辅助逻辑（表单解析、流式检索、SSE 格式化）。
-- `templates/`：Jinja2 模板，`index.html` 为首页，`tutorial.html` 为新手教程。
-- `static/`：样式与前端脚本，`static/css/main.css` 定义统一配色与组件样式。
-- `paper_sources/`：文献来源接口与实现，注册表统一暴露数据源。
-- `ai_providers/`：AI 摘要提供方接口与实现，支持 Gemini、OpenAI 或关闭 AI。
-- `services/`：通用服务层，包含 BibTeX 组装与辅助工具。
-- `docs/`：文档与变更记录。
+## 项目结构
+- `webapp.py`：Flask 入口与路由（首页检索、自动工作流、下载等）。
+- `web_layer/`：Web 层逻辑（表单解析、SSE 搜索封装）。
+- `templates/`：Jinja2 页面模板（含 workflow 页面）。
+- `static/`：前端脚本与样式（工作流请求、模型列表拉取、结果渲染）。
+- `paper_sources/`：文献数据源（当前默认 PubMed）。
+- `ai_providers/`：AI Provider（OpenAI/Gemini/Ollama）。
+- `services/`：通用服务（方向拆解、检索式生成、AI 摘要、BibTeX 组装等）。
+- `docs/`：项目文档（提示词、开发说明、不足与改进等）。
 
-## 开发要点
-- 依赖更新请通过 `uv add` 或 `uv remove`，并提交更新后的 `pyproject.toml` 与 `uv.lock`。
-- 不使用 Docker；如需部署请基于常规 Python 环境，按 README 所述方式启动。
-- 修改样式或模板时，保持与首页一致的配色与组件风格（`static/css/main.css` 中的变量为基准）。
-- 新增文献源或 AI Provider 时，在对应 `registry.py` 中注册以供前端下拉列表使用。
+## 关键路由
+- `POST /api/search_stream`：单次检索的 SSE 流（实时状态与最终结果）。
+- `POST /api/auto_workflow_stream`：自动工作流 SSE（方向拆解 + 多方向并发检索，方向完成即推送结果）。
+- `POST /api/list_models`：拉取 AI Provider 可用模型列表，填充到前端 datalist。
+
+## 并发与限速（重要）
+
+### 工作流并发
+- 方向并发：当前默认不限制（方向越多线程越多）。
+- PubMed 并发：由工作流页面“PubMed 并发”控制，并在一次 workflow 内用 semaphore 限制 PubMed HTTP 请求并发。
+
+### AI 摘要并发
+- `services/ai_summary.py` 会对每篇文章单独调用一次 summarize，并发数默认为“每篇文章一个并发 worker”（不限制）。
+- 可通过环境变量 `AI_SUMMARY_CONCURRENCY` 覆盖并发上限（设置为正整数）。
+
+### PubMed 重试与退避
+PubMed 请求对 `429/5xx/超时/连接失败` 做了自动重试与指数退避，可通过环境变量配置：
+- `PUBMED_MAX_RETRIES`（默认 `4`）
+- `PUBMED_BACKOFF_BASE`（默认 `0.6`）
+- `PUBMED_BACKOFF_MAX`（默认 `10`）
+
+## 文档入口
+- `docs/AI_PROMPTS.md`：项目内使用的 AI 提示词汇总（便于统一审阅）。
+- `docs/LIMITATIONS.md`：当前不足与改进建议（迭代路线图的输入）。
+
